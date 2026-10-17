@@ -1,0 +1,20 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "contatti": {
+          "$cid": {
+            ".validate": "newData.hasChildren(['nome']) && newData.child('nome').isString() && newData.child('nome').val().length >= 1 && newData.child('nome').val().length <= 120"
+          }
+        },
+        "appuntamenti": {
+          "$aid": {
+            ".validate": "newData.hasChildren(['contattoId','data','ora','stato']) && newData.child('stato').val().matches(/^(programmato|confermato|completato|annullato)$/)"
+          }
+        }
+      }
+    }
+  }
+}
