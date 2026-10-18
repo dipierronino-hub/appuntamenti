@@ -102,6 +102,11 @@ main{max-width:760px;margin:0 auto;padding:4px 14px 0}
 a{color:var(--brand);text-decoration:none}
 .card.contatto{padding-left:14px}
 .card.contatto::before{display:none}
+.smart{max-width:760px;margin:10px auto 0;padding:0 14px}
+.smart-form{display:flex;gap:8px;align-items:flex-end;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 8px 8px 14px;box-shadow:var(--shadow);transition:box-shadow .2s,border-color .2s}
+.smart-form:focus-within{border-color:var(--brand-2);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand-2) 25%,transparent)}
+.smart-form textarea{flex:1;border:0;background:transparent;resize:none;font:inherit;font-size:16px;color:var(--ink);outline:none;min-height:44px;padding:8px 0}
+.smart-form .btn{flex:none;align-self:center}
 </style>
 </head>
 <body>
@@ -126,6 +131,12 @@ a{color:var(--brand);text-decoration:none}
       <button class="icon" data-act="logout" aria-label="Esci">⏻</button>
     </div>
   </header>
+  <section id="smartBox" class="smart" hidden>
+    <form id="smartForm" class="smart-form">
+      <textarea id="smartTxt" rows="2" maxlength="1500" placeholder="Incolla un messaggio, es. «Vorrei venire in showroom giovedì alle 15 per i sanitari»"></textarea>
+      <button class="btn primary">✨ Compila</button>
+    </form>
+  </section>
   <main id="main"></main>
   <nav class="tabs">
     <button class="tab" data-act="nav" data-v="agenda"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Agenda</span></button>
@@ -587,6 +598,136 @@ async function salvaIndirizziConferma(lista) {
   return esegui(userRef('impostazioni/indirizziConferma').set(puliti), 'Indirizzi di conferma salvati');
 }
 
+// ===================== PREFERENZE LOCALI E ASSISTENTE IA =====================
+// Le preferenze restano solo in questo browser. Se lo storage è bloccato, l'app continua a funzionare.
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage non disponibile */ } }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* storage non disponibile */ } }
+
+function applicaTema(t) {
+  const root = document.documentElement;
+  if (t === 'chiaro') root.dataset.theme = 'light';
+  else if (t === 'scuro') root.dataset.theme = 'dark';
+  else delete root.dataset.theme;
+}
+
+const MODELLO_IA_PREDEFINITO = 'gemini-2.5-flash';
+
+function salvaImpostazioniIA(form) {
+  const chiave = String(form.geminiKey.value || '').trim();
+  const modello = String(form.geminiModel.value || '').trim();
+  if (chiave) lsSet('gemini_key', chiave); else lsDel('gemini_key');
+  lsSet('gemini_model', modello || MODELLO_IA_PREDEFINITO);
+  lsSet('tema', form.tema.value);
+  applicaTema(form.tema.value);
+}
+
+// Chiamata all'API Gemini. Con comeJson restituisce un oggetto, altrimenti il testo.
+async function chiediGemini(prompt, comeJson = true) {
+  const chiave = lsGet('gemini_key');
+  if (!chiave) throw new Error('chiave mancante');
+  const modello = lsGet('gemini_model') || MODELLO_IA_PREDEFINITO;
+  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modello) + ':generateContent', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chiave },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: comeJson ? { temperature: 0.2, responseMimeType: 'application/json' } : { temperature: 0.4 }
+    })
+  });
+  if (!r.ok) throw new Error('Gemini ' + r.status);
+  const j = await r.json();
+  const testo = (j?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+  if (!testo) throw new Error('risposta vuota');
+  if (!comeJson) return testo;
+  const m = /\{[\s\S]*\}/.exec(testo);
+  if (!m) throw new Error('formato non valido');
+  try { return JSON.parse(m[0]); } catch (e) { throw new Error('formato JSON non valido'); }
+}
+
+// Messaggio comprensibile per l'utente, senza dettagli tecnici.
+function messaggioIA(err) {
+  const m = String(err?.message || '');
+  if (m.includes('chiave mancante')) return 'Inserisci la chiave Gemini nelle Impostazioni';
+  if (/Gemini (400|401|403)/.test(m)) return 'Chiave Gemini non valida: controllala nelle Impostazioni';
+  if (m.includes('Gemini 429')) return 'Troppe richieste: riprova tra un minuto';
+  if (m.includes('formato') || m.includes('risposta vuota')) return 'L’assistente non ha capito: prova a riscrivere il messaggio';
+  return 'Assistente IA non disponibile. Controlla la connessione.';
+}
+
+function promptSmart(testo) {
+  const oggi = todayISO();
+  return `Sei un assistente per uno showroom di arredo e uno studio professionale. Oggi è ${fmtData(oggi)} (data ISO ${oggi}).
+Dal messaggio seguente estrai i dati per fissare un appuntamento. Rispondi SOLO con un oggetto JSON con queste chiavi, tutte stringhe tranne "durata":
+- "nome": nome della persona o del cliente, vuoto se assente
+- "telefono": vuoto se assente
+- "email": vuota se assente
+- "azienda": vuota se assente
+- "data": formato YYYY-MM-DD. Per giorni come "giovedì" o "domani" calcola la prossima occorrenza a partire da oggi. Vuota se assente
+- "ora": formato HH:MM a 24 ore, vuota se assente
+- "durata": numero intero di minuti, 30 se non indicata
+- "luogo": vuoto se assente
+- "motivo": breve, per esempio "sanitari"
+- "note": altre informazioni utili, vuoto se assenti
+Non inventare dati mancanti.
+
+Messaggio:
+"""
+${testo}
+"""`;
+}
+
+function pulisciDatiIA(d) {
+  const durata = Number(d.durata);
+  return {
+    nome: String(d.nome ?? '').trim(),
+    telefono: String(d.telefono ?? '').trim(),
+    email: String(d.email ?? '').trim(),
+    azienda: String(d.azienda ?? '').trim(),
+    data: validDate(d.data) ? d.data : undefined,
+    ora: validTime(d.ora) ? d.ora : undefined,
+    durata: Number.isInteger(durata) && durata >= 5 && durata <= 480 ? durata : 30,
+    luogo: String(d.luogo ?? '').trim(),
+    motivo: String(d.motivo ?? '').trim(),
+    note: String(d.note ?? '').trim()
+  };
+}
+
+// Barra in cima all'agenda: il testo libero diventa un modulo appuntamento precompilato.
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'smartForm') return;
+  e.preventDefault();
+  const testo = $('#smartTxt').value.trim();
+  if (!testo) { toast('Scrivi o incolla un messaggio'); return; }
+  if (!lsGet('gemini_key')) {
+    toast('Inserisci prima la chiave Gemini nelle Impostazioni');
+    openImpostazioni();
+    return;
+  }
+  const btn = e.target.querySelector('button');
+  const etichetta = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Analisi…';
+  try {
+    const d = pulisciDatiIA(await chiediGemini(promptSmart(testo)));
+    const contatto = d.nome ? trovaContatto(S.contatti, d.nome) : null;
+    openAppForm({
+      ...d,
+      contattoId: contatto?.id,
+      telefono: d.telefono || contatto?.telefono || '',
+      email: d.email || contatto?.email || ''
+    });
+    $('#smartTxt').value = '';
+  } catch (err) {
+    toast(messaggioIA(err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = etichetta;
+  }
+});
+
+applicaTema(lsGet('tema') || 'auto');
+
 // ===================== VISTE =====================
 const ETICHETTE_STATO = { programmato: 'Programmato', confermato: 'Confermato', completato: 'Completato', annullato: 'Annullato' };
 const CHIUSI = ['completato', 'annullato'];
@@ -603,6 +744,8 @@ function appuntamentiCompleti() {
 
 function render() {
   document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.v === S.vista));
+  const sb = $('#smartBox');
+  if (sb) sb.hidden = S.vista !== 'agenda' || !S.user;
   if (!S.user) return;
   if (S.vista === 'contatti') renderContatti();
   else renderAgenda();
@@ -687,14 +830,14 @@ function openAppForm(opt = {}) {
   const v = {
     nome: opt.nome ?? c.nome ?? '',
     telefono: opt.telefono ?? c.telefono ?? '',
-    email: c.email ?? '',
+    email: c.email ?? opt.email ?? '',
     azienda: a?.azienda ?? opt.azienda ?? '',
     data: a?.data ?? opt.data ?? todayISO(),
     ora: a?.ora ?? opt.ora ?? '09:00',
-    durata: a?.durata ?? 30,
-    luogo: a?.luogo ?? '',
+    durata: a?.durata ?? opt.durata ?? 30,
+    luogo: a?.luogo ?? opt.luogo ?? '',
     motivo: a?.motivo ?? opt.motivo ?? '',
-    note: a?.note ?? '',
+    note: a?.note ?? opt.note ?? '',
     stato: a?.stato ?? 'programmato'
   };
   const opzioni = contattiOrdinati().map(k =>
@@ -928,10 +1071,12 @@ function openEmail(appId = null, contattoId = null) {
     ${nota}
     <form id="fe">
       <label>A<input name="to" type="email" required value="${esc(c.email || '')}"></label>
+      <label>Tipo di messaggio<select name="tipoIA"><option value="conferma">Conferma appuntamento</option><option value="riepilogo">Riepilogo</option><option value="followup">Follow-up</option></select></label>
       <label>Oggetto<input name="oggetto" required maxlength="200" value="${esc(oggetto)}"></label>
       <label>Messaggio<textarea name="corpo" rows="8">${esc(corpo)}</textarea></label>
       <div class="actions">
         <button type="button" class="btn ghost" data-act="chiudi">Annulla</button>
+        <button type="button" class="btn" id="btnIA">✨ Genera con IA</button>
         <button type="button" class="btn" id="btnMailto">Apri nel client di posta</button>
         ${gmailOk()
           ? '<button class="btn primary">Invia con Gmail</button>'
@@ -939,6 +1084,29 @@ function openEmail(appId = null, contattoId = null) {
       </div>
     </form>`, m => {
     const f = m.querySelector('#fe');
+    m.querySelector('#btnIA').addEventListener('click', async () => {
+      const tipo = f.tipoIA.value;
+      const dettagli = a
+        ? `Appuntamento il ${fmtData(a.data)} alle ${a.ora}${a.luogo ? ' presso ' + a.luogo : ''}${a.motivo ? ' per ' + a.motivo : ''}${a.azienda ? ' (azienda: ' + a.azienda + ')' : ''}.`
+        : "Non c'è un appuntamento specifico: scrivi un messaggio di contatto generico.";
+      const scopo = { conferma: 'conferma l’appuntamento', riepilogo: 'riepiloga i dettagli dell’appuntamento', followup: 'ringrazia per l’incontro e proponi un eventuale seguito' }[tipo] || 'scrivi un messaggio cortese';
+      const prompt = `Scrivi in italiano un'email professionale e cortese per uno showroom di arredo o uno studio professionale. Destinatario: ${c.nome || 'il cliente'}. Obiettivo: ${scopo}. ${dettagli} Tono sobrio e sintetico. Non inventare date, orari o impegni non indicati. Rispondi SOLO con un oggetto JSON con le chiavi "oggetto" (una riga) e "corpo" (testo completo con saluto iniziale e chiusura "Cordiali saluti", senza firma con nome).`;
+      const btnIA = m.querySelector('#btnIA');
+      const etichetta = btnIA.textContent;
+      btnIA.disabled = true;
+      btnIA.textContent = 'Generazione…';
+      try {
+        const d = await chiediGemini(prompt);
+        if (d.oggetto) f.oggetto.value = String(d.oggetto).trim();
+        if (d.corpo) f.corpo.value = String(d.corpo);
+        toast('Bozza generata: controllala prima di inviare');
+      } catch (err) {
+        toast(messaggioIA(err));
+      } finally {
+        btnIA.disabled = false;
+        btnIA.textContent = etichetta;
+      }
+    });
     f.addEventListener('submit', e => { e.preventDefault(); inviaEmail(f, appId, cid); });
     m.querySelector('#btnMailto').addEventListener('click', () => {
       const to = f.to.value.trim(), subj = f.oggetto.value.trim(), body = f.corpo.value;
@@ -1104,6 +1272,20 @@ function openImpostazioni() {
         <textarea name="indirizzi" rows="3">${esc(indirizziConferma().join(', '))}</textarea>
       </label>
       <p class="muted">Le email ricevute da questi indirizzi, riferite a un contatto o a un’azienda, compaiono nella scheda dell’appuntamento come conferme.</p>
+      <label>Chiave API Gemini (solo su questo dispositivo)
+        <input name="geminiKey" type="password" autocomplete="off" value="${esc(lsGet('gemini_key') || '')}">
+      </label>
+      <label>Modello Gemini
+        <input name="geminiModel" type="text" value="${esc(lsGet('gemini_model') || MODELLO_IA_PREDEFINITO)}">
+      </label>
+      <p class="muted">La chiave resta solo in questo browser e non è mai nel codice. Le richieste IA inviano a Google il testo che scrivi.</p>
+      <label>Tema
+        <select name="tema">
+          <option value="auto" ${(lsGet('tema') || 'auto') === 'auto' ? 'selected' : ''}>Automatico</option>
+          <option value="chiaro" ${lsGet('tema') === 'chiaro' ? 'selected' : ''}>Chiaro</option>
+          <option value="scuro" ${lsGet('tema') === 'scuro' ? 'selected' : ''}>Scuro</option>
+        </select>
+      </label>
       <div class="actions">
         <button type="button" class="btn ghost" data-act="chiudi">Annulla</button>
         <button class="btn primary">Salva</button>
@@ -1111,6 +1293,7 @@ function openImpostazioni() {
     </form>`, m => {
     m.querySelector('#fi').addEventListener('submit', async e => {
       e.preventDefault();
+      salvaImpostazioniIA(e.target);
       const esito = await salvaIndirizziConferma(parseListaEmail(e.target.indirizzi.value));
       if (esito !== 'errore') closeModal();
     });
