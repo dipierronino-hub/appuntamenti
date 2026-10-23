@@ -41,6 +41,8 @@
   --pay-due:#ff7a7a;--pay-due-bg:rgba(255,92,92,.16);
   --pay-dep:#ffa94d;--pay-dep-bg:rgba(255,146,43,.16);
   --pay-ok:#4ade9b;--pay-ok-bg:rgba(16,185,129,.16);
+  --in:#4ade9b;--in-bg:rgba(16,185,129,.16);
+  --out:#ff8a73;--out-bg:rgba(255,122,99,.16);
   --tap:48px;
   --r-lg:22px;--r-md:16px;--r-sm:12px;
   --font:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -79,6 +81,8 @@
   --pay-due:#dc2626;--pay-due-bg:rgba(239,68,68,.1);
   --pay-dep:#c2410c;--pay-dep-bg:rgba(249,115,22,.13);
   --pay-ok:#047857;--pay-ok-bg:rgba(16,185,129,.13);
+  --in:#047857;--in-bg:rgba(16,185,129,.13);
+  --out:#c2410c;--out-bg:rgba(234,88,12,.12);
   color-scheme:light
 }
 *,*::before,*::after{box-sizing:border-box}
@@ -283,8 +287,11 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 .giorno-label{font-weight:800;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text);padding-top:6px}
 .app-item{display:grid;grid-template-columns:54px minmax(0,1fr);gap:10px;cursor:pointer;transition:transform .2s var(--ease)}
 .app-item:active{transform:scale(.98)}
-.app-item .ora1{font-weight:800;font-size:19px;line-height:1;letter-spacing:-.02em}
-.app-item .ora2{font-size:11.5px;color:var(--color-faint);margin-top:5px;font-weight:500}
+.app-item .ora1{font-weight:800;font-size:19px;line-height:1;letter-spacing:-.02em;color:var(--color-text);font-variant-numeric:tabular-nums}
+.app-item .ora2{font-size:13.5px;line-height:1;color:var(--color-muted);margin-top:7px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+/* Appuntamenti passati: si attenua solo la scheda, gli orari restano leggibili */
+.app-item.spento .box{opacity:.6}
+.app-item.spento .ora1{color:var(--color-muted)}
 .app-item .box{padding:13px 15px 13px 18px;display:flex;flex-direction:column;gap:5px;overflow:hidden;transition:background .3s ease,box-shadow .3s ease,border-color .3s ease}
 .app-item .box::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:0 4px 4px 0;background:var(--st-c,var(--accent));box-shadow:0 0 12px var(--st-c,var(--accent))}
 .app-item:hover .box{border-color:var(--glass-hi);box-shadow:var(--shadow-card),0 0 0 1px rgba(59,130,246,.15)}
@@ -351,10 +358,26 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 .tag-pay-due{background:var(--pay-due-bg);color:var(--pay-due);border-color:color-mix(in srgb,var(--pay-due) 30%,transparent)}
 .tag-pay-dep{background:var(--pay-dep-bg);color:var(--pay-dep);border-color:color-mix(in srgb,var(--pay-dep) 30%,transparent)}
 .tag-pay-ok{background:var(--pay-ok-bg);color:var(--pay-ok);border-color:color-mix(in srgb,var(--pay-ok) 30%,transparent)}
+.tag-in{background:var(--in-bg);color:var(--in);border-color:color-mix(in srgb,var(--in) 30%,transparent)}
+.tag-out{background:var(--out-bg);color:var(--out);border-color:color-mix(in srgb,var(--out) 30%,transparent)}
+.tag-saldato{background:var(--st-ann-bg);color:var(--color-muted)}
+.tag-saldato::before{content:"✓";width:auto;height:auto;background:none;box-shadow:none;font-size:11px}
+.totali{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:10px}
+.totale{display:flex;flex-direction:column;gap:4px;padding:10px 14px;border-radius:var(--r-md);font-size:12px;font-weight:700;letter-spacing:.02em;border:1px solid transparent}
+.totale>span{display:flex;align-items:center;gap:6px}
+.totale b{font-size:20px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.totale.in{background:var(--in-bg);color:var(--in);border-color:color-mix(in srgb,var(--in) 30%,transparent)}
+.totale.out{background:var(--out-bg);color:var(--out);border-color:color-mix(in srgb,var(--out) 30%,transparent)}
+.seg-mov>button{display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.15}
+.seg-mov>button>span{display:flex;align-items:center;gap:5px}
+.seg-mov>button small{font-size:11px;font-weight:500;opacity:.85}
+.seg-mov>button[data-m="entrata"][aria-pressed="true"]{background:linear-gradient(135deg,#059669,#34d399);box-shadow:0 4px 16px rgba(16,185,129,.35)}
+.seg-mov>button[data-m="uscita"][aria-pressed="true"]{background:linear-gradient(135deg,#ea580c,#fb7185);box-shadow:0 4px 16px rgba(249,115,22,.35)}
 .importo{font-weight:800;font-size:14px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap}
-.seg-pay>button[data-p="da-saldare"][aria-pressed="true"]{background:linear-gradient(135deg,#f43f5e,#ff6b6b);box-shadow:0 4px 16px rgba(244,63,94,.35)}
+.seg-pay>button[data-p="da-saldare"][aria-pressed="true"]{background:linear-gradient(135deg,#059669,#34d399);box-shadow:0 4px 16px rgba(16,185,129,.35)}
+.seg-pay[data-mov="uscita"]>button[data-p="da-saldare"][aria-pressed="true"]{background:linear-gradient(135deg,#ea580c,#fb7185);box-shadow:0 4px 16px rgba(249,115,22,.35)}
 .seg-pay>button[data-p="acconto"][aria-pressed="true"]{background:linear-gradient(135deg,#f97316,#fbbf24);box-shadow:0 4px 16px rgba(249,115,22,.35)}
-.seg-pay>button[data-p="pagato"][aria-pressed="true"]{background:linear-gradient(135deg,#10b981,#34d399);box-shadow:0 4px 16px rgba(16,185,129,.35)}
+.seg-pay>button[data-p="pagato"][aria-pressed="true"]{background:var(--grad);box-shadow:var(--glow-sm)}
 .incassi{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 16px}
 
 /* ===== Azioni rapide nelle schede (pollice: 48 px) ===== */
@@ -432,7 +455,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
 const GOOGLE_CLIENT_ID = "215870183788-sahmel22cqnd110ff1lrsf8tch3s1lco.apps.googleusercontent.com";
 const GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly";
@@ -715,7 +738,9 @@ const ICON_PATHS = {
   nav: '<path d="M3 11 22 2l-9 19-2-8z"/>',
   euro: '<path d="M4 10h12M4 14h9M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/>',
   vibra: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 8v8M21 8v8"/>',
-  send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>'
+  send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
+  down: '<path d="M12 5v14M19 12l-7 7-7-7"/>',
+  up: '<path d="M12 19V5M5 12l7-7 7 7"/>'
 };
 function icon(n, s = 18) {
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[n]}</svg>`;
@@ -867,13 +892,14 @@ function validaAppuntamento(v) {
   const importo = parseImporto(v.importo);
   if (importo === null) return { ok: false, msg: 'Importo non valido (es. 250 oppure 1.250,50)' };
   const pagamento = PAGAMENTI[v.pagamento] ? v.pagamento : 'da-saldare';
+  const movimento = v.movimento === 'uscita' ? 'uscita' : 'entrata';
   const acconto = pagamento === 'acconto' ? parseImporto(v.acconto) : 0;
   if (acconto === null) return { ok: false, msg: 'Acconto non valido' };
   if (importo && acconto > importo) return { ok: false, msg: 'L’acconto non può superare l’importo' };
   return {
     ok: true,
     dati: {
-      data: v.data, ora: v.ora, durata, stato, importo, pagamento, acconto,
+      data: v.data, ora: v.ora, durata, stato, importo, movimento, pagamento, acconto,
       azienda: String(v.azienda ?? '').trim(),
       luogo: String(v.luogo ?? '').trim(),
       motivo: String(v.motivo ?? '').trim(),
@@ -972,7 +998,7 @@ async function cambiaPagamento(aid, nuovo) {
   if (!a || !PAGAMENTI[nuovo] || (a.pagamento || 'da-saldare') === nuovo) return 'errore';
   const storico = storicoOf(a);
   storico.push({ tipo: 'pagamento', da: a.pagamento || 'da-saldare', a: nuovo, quando: new Date().toISOString() });
-  return esegui(userRef('appuntamenti/' + aid).update({ pagamento: nuovo, storico, aggiornato: Date.now() }), 'Pagamento: ' + PAGAMENTI[nuovo]);
+  return esegui(userRef('appuntamenti/' + aid).update({ pagamento: nuovo, storico, aggiornato: Date.now() }), etichettaPag(a, nuovo));
 }
 
 function eliminaApp(aid) {
@@ -1061,6 +1087,7 @@ Dal messaggio seguente, scritto o dettato a voce, estrai i dati. Rispondi SOLO c
 - "nome_cliente": nome e cognome della persona o del cliente, vuoto se assente
 - "luogo": città, indirizzo o posto, es. "Rutigliano Ufficio", vuoto se assente
 - "importo": numero in euro (es. 250.5), null se assente
+- "movimento": "entrata" se è un importo da incassare (un cliente deve pagare), "uscita" se è da pagare (fattura di un fornitore, tassa, affitto, scadenza passiva); vuoto se non c'è importo
 - "stato_pagamento": "da-saldare", "acconto" oppure "pagato"; vuoto se non indicato
 - "acconto": numero in euro già versato, null se assente
 - "telefono", "email", "azienda", "note": stringhe, vuote se assenti
@@ -1093,7 +1120,8 @@ function pulisciDatiIA(d) {
     note: String(d.note ?? '').trim(),
     importo: importo || undefined,
     acconto: acconto || undefined,
-    pagamento: pagamento || (acconto ? 'acconto' : undefined)
+    pagamento: pagamento || (acconto ? 'acconto' : undefined),
+    movimento: /uscit|pagar|passiv/.test(norm(d.movimento ?? '')) ? 'uscita' : (importo ? 'entrata' : undefined)
   };
 }
 
@@ -1116,7 +1144,7 @@ const linkNavigazione = luogo => 'https://www.google.com/maps/dir/?api=1&travelm
 function messaggioWhatsApp(a, c) {
   const nome = String(c.nome || '').split(' ')[0];
   const quando = `${fmt(a.data, { weekday: 'long', day: 'numeric', month: 'long' })} alle ${a.ora}`;
-  const da = residuo(a);
+  const da = movimentoDi(a) === 'entrata' ? residuo(a) : 0;
   return `Buongiorno${nome ? ' ' + nome : ''}, le ricordo l'appuntamento di ${quando}${a.luogo ? ' presso ' + a.luogo : ''}${a.motivo ? ' (' + a.motivo + ')' : ''}.`
     + (da ? ` Importo da saldare: ${euro(da)}.` : '') + ' Grazie!';
 }
@@ -1237,18 +1265,38 @@ async function attivaNotifiche() {
 const ETICHETTE_STATO = { programmato: 'Programmato', confermato: 'Confermato', completato: 'Completato', annullato: 'Annullato' };
 const CLASSI_STATO = { programmato: 'tag-prog', confermato: 'tag-conf', completato: 'tag-comp', annullato: 'tag-ann' };
 const CHIUSI = ['completato', 'annullato'];
-const PAGAMENTI = { 'da-saldare': 'Da saldare', acconto: 'Acconto', pagato: 'Pagato' };
-const CLASSI_PAGAMENTO = { 'da-saldare': 'tag-pay-due', acconto: 'tag-pay-dep', pagato: 'tag-pay-ok' };
-const COLORI_PAGAMENTO = { 'da-saldare': 'var(--pay-due)', acconto: 'var(--pay-dep)', pagato: 'var(--pay-ok)' };
+const PAGAMENTI = { 'da-saldare': 'Da saldare', acconto: 'Acconto', pagato: 'Saldato' };
+// Entrata = soldi da incassare da un cliente; uscita = soldi da pagare (fatture fornitori, scadenze passive).
+const MOVIMENTI = { entrata: 'Entrata', uscita: 'Uscita' };
+const ETICHETTE_PAGAMENTO = {
+  entrata: { 'da-saldare': 'Da incassare', acconto: 'Acconto', pagato: 'Incassato' },
+  uscita: { 'da-saldare': 'Da pagare', acconto: 'Acconto', pagato: 'Pagato' }
+};
 const euro = n => Number(n || 0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+const movimentoDi = a => (a.movimento === 'uscita' ? 'uscita' : 'entrata');
 const statoPag = a => (PAGAMENTI[a.pagamento] ? a.pagamento : 'da-saldare');
+const etichettaPag = (a, k = statoPag(a)) => ETICHETTE_PAGAMENTO[movimentoDi(a)][k];
+const coloreMov = a => (movimentoDi(a) === 'uscita' ? 'var(--out)' : 'var(--in)');
+// Importo con segno: + per le entrate, − per le uscite.
+const importoFirmato = a => (movimentoDi(a) === 'uscita' ? '−' : '+') + euro(a.importo);
 const haImporto = a => Number(a.importo) > 0;
 // Il badge compare se c'è un importo o se il pagamento è stato segnato.
 const conPagamento = a => haImporto(a) || (a.pagamento && a.pagamento !== 'da-saldare');
-// Quanto resta da incassare (0 se pagato, annullato o senza importo).
+// Quanto resta da incassare o da pagare (0 se saldato, annullato o senza importo).
 const residuo = a => !haImporto(a) || a.stato === 'annullato' || statoPag(a) === 'pagato' ? 0
   : Math.max(0, Number(a.importo) - (statoPag(a) === 'acconto' ? Number(a.acconto) || 0 : 0));
-const tagPagamento = a => conPagamento(a) ? `<span class="tag ${CLASSI_PAGAMENTO[statoPag(a)]}">${PAGAMENTI[statoPag(a)]}</span>` : '';
+const totaliAperti = lista => lista.reduce((t, a) => { t[movimentoDi(a)] += residuo(a); return t; }, { entrata: 0, uscita: 0 });
+// Badge: in attesa = colore del tipo (verde entrata, corallo uscita), acconto = arancione, saldato = neutro.
+const tagPagamento = a => {
+  if (!conPagamento(a)) return '';
+  const k = statoPag(a);
+  const cls = k === 'pagato' ? 'tag-saldato' : k === 'acconto' ? 'tag-pay-dep' : movimentoDi(a) === 'uscita' ? 'tag-out' : 'tag-in';
+  return `<span class="tag ${cls}">${etichettaPag(a)}</span>`;
+};
+// Pillole dei totali: "Da incassare X €" e "Da pagare Y €", solo se diversi da zero.
+const pilloleTotali = t => (t.entrata || t.uscita)
+  ? `<div class="totali">${t.entrata ? `<div class="totale in"><span>${icon('down', 15)} Da incassare</span><b>${esc(euro(t.entrata))}</b></div>` : ''}${t.uscita ? `<div class="totale out"><span>${icon('up', 15)} Da pagare</span><b>${esc(euro(t.uscita))}</b></div>` : ''}</div>`
+  : '';
 const byDt = (x, y) => (x.data + x.ora).localeCompare(y.data + y.ora);
 
 function contattiOrdinati() {
@@ -1281,8 +1329,8 @@ function voceApp(a) {
   const spento = a.stato === 'annullato' || (a.data === todayISO() && passato(a)) || a.data < todayISO();
   const meta = [c.nome || '(contatto eliminato)', a.luogo].filter(Boolean).map(esc).join('</span><span>·</span><span>');
   const inRitardo = a.data < todayISO() && !CHIUSI.includes(a.stato);
-  return `<div class="app-item" data-act="apri" data-id="${esc(a.id)}" role="button" tabindex="0" style="opacity:${spento ? '.55' : '1'}">
-    <div style="padding-top:12px"><div class="ora1">${esc(a.ora)}</div><div class="ora2">${esc(fineApp(a))}</div></div>
+  return `<div class="app-item${spento ? ' spento' : ''}" data-act="apri" data-id="${esc(a.id)}" role="button" tabindex="0">
+    <div style="padding-top:12px"><div class="ora1">${esc(a.ora)}</div><div class="ora2" aria-label="fine ${esc(fineApp(a))}">${esc(fineApp(a))}</div></div>
     <div class="box glass" data-stato="${esc(a.stato)}"${inRitardo ? ' data-ritardo' : ''}>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <span class="card-kicker" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.azienda || plurale(Number(a.durata) || 30, 'minuto', 'minuti'))}</span>
@@ -1298,7 +1346,7 @@ function voceApp(a) {
 // Fondo della scheda: importo con stato del pagamento, poi le azioni rapide.
 function rigaRapide(a, c) {
   const pag = conPagamento(a)
-    ? `<div style="display:flex;gap:8px;align-items:center">${haImporto(a) ? `<span class="importo" style="color:${COLORI_PAGAMENTO[statoPag(a)]}">${esc(euro(a.importo))}</span>` : ''}${tagPagamento(a)}</div>`
+    ? `<div style="display:flex;gap:8px;align-items:center">${haImporto(a) ? `<span class="importo" style="color:${coloreMov(a)}">${esc(importoFirmato(a))}</span>` : ''}${tagPagamento(a)}</div>`
     : '';
   return pag + (a.stato === 'annullato' ? '' : rapide(c, a));
 }
@@ -1338,7 +1386,7 @@ function renderAgenda() {
   const summary = attivi.length
     ? `${plurale(attivi.length, 'appuntamento', 'appuntamenti')} · dalle ${attivi[0].ora} alle ${fineApp(attivi[attivi.length - 1])}`
       + (sovrappostiNelGiorno(attivi) ? ' · <span style="color:var(--color-warn)">sovrapposizioni</span>' : '')
-      + (attivi.some(residuo) ? ` · <span style="color:var(--pay-due);font-weight:700">da incassare ${esc(euro(attivi.reduce((t, a) => t + residuo(a), 0)))}</span>` : '')
+
     : 'Nessun appuntamento';
 
   const toggle = (modo, ic, label) =>
@@ -1395,6 +1443,7 @@ function renderAgenda() {
       </div>
     </div>
     <div class="summary">${summary}</div>
+    ${pilloleTotali(totaliAperti(attivi))}
     <div class="${anima ? 'entra-giorno' : ''}" style="display:flex;flex-direction:column;gap:16px">${corpo}</div>
   </div>`;
 }
@@ -1432,7 +1481,7 @@ function timeline(items, eOggi) {
       const alto = Math.max((fine - ini) * PX, 44);
       const ritardo = x.data < todayISO() && !CHIUSI.includes(x.stato);
       return `<div class="tl-block" data-stato="${esc(x.stato)}"${ritardo ? ' data-ritardo' : ''} data-act="apri" data-id="${esc(x.id)}" role="button" tabindex="0" style="left:calc(52px + ${w} * ${col});width:calc(${w} - 6px);top:${(ini - da) * PX + 1}px;height:${alto - 2}px;opacity:${spento ? '.5' : '1'}">
-        <div class="tl-t"><span>${esc(x.ora)}–${esc(fineApp(x))}</span><span>${conPagamento(x) ? `<b style="color:${COLORI_PAGAMENTO[statoPag(x)]}">${esc(haImporto(x) ? euro(x.importo) : PAGAMENTI[statoPag(x)])}</b> · ` : ''}${esc(ETICHETTE_STATO[x.stato] || '')}</span></div>
+        <div class="tl-t"><span>${esc(x.ora)}–${esc(fineApp(x))}</span><span>${conPagamento(x) ? `<b style="color:${coloreMov(x)}">${esc(haImporto(x) ? importoFirmato(x) : etichettaPag(x))}</b> · ` : ''}${esc(ETICHETTE_STATO[x.stato] || '')}</span></div>
         <div class="tl-ti" style="text-decoration:${x.stato === 'annullato' ? 'line-through' : 'none'}">${esc(x.motivo || x.contatto.nome || 'Appuntamento')}</div>
         ${alto >= 70 ? `<div class="tl-c">${esc(x.contatto.nome || '')}</div>` : ''}
       </div>`;
@@ -1499,7 +1548,7 @@ function renderCerca() {
       <div class="search">${icon('search')}
         <input id="qCerca" class="input" type="search" placeholder="Nome, motivo, luogo, azienda, note…" value="${esc(S.qCerca)}" autocomplete="off">
       </div>
-      <div class="seg">${chip('da-fare', 'Da fare')}${chip('incassi', 'Incassi')}${chip('passati', 'Passati')}${chip('tutti', 'Tutti')}</div>
+      <div class="seg">${chip('da-fare', 'Da fare')}${chip('incassi', 'Pagamenti')}${chip('passati', 'Passati')}${chip('tutti', 'Tutti')}</div>
       <div id="risultati" style="display:flex;flex-direction:column;gap:16px"></div>
     </div>`;
   }
@@ -1522,9 +1571,10 @@ function risultatiCerca() {
   const contatti = q ? contattiOrdinati().filter(c => norm(`${c.nome || ''} ${c.telefono || ''} ${c.email || ''} ${c.note || ''}`).includes(q)) : [];
   let html = '';
   if (S.filtro === 'incassi' && lista.length) {
-    const tot = lista.reduce((t, a) => t + residuo(a), 0);
-    html += `<div class="glass incassi"><div><div class="cella-k">Da incassare</div><div class="cella-v" style="color:var(--pay-due)">${esc(euro(tot))}</div></div>
-      <div class="muted" style="text-align:right">${plurale(lista.length, 'appuntamento', 'appuntamenti')}${(n => n ? '<br>' + plurale(n, 'con acconto', 'con acconto') : '')(lista.filter(a => statoPag(a) === 'acconto').length)}</div></div>`;
+    const t = totaliAperti(lista);
+    html += `<div class="glass griglia" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+      <div><div class="cella-k">Da incassare</div><div class="cella-v" style="color:var(--in)">${esc(euro(t.entrata))}</div></div>
+      <div><div class="cella-k">Da pagare</div><div class="cella-v" style="color:var(--out)">${esc(euro(t.uscita))}</div></div></div>`;
   }
   if (contatti.length) {
     html += `<div class="sezione"><h2>Contatti · ${contatti.length}</h2><div class="lista-righe">${contatti.slice(0, 5).map(rigaContatto).join('')}</div></div>`;
@@ -1729,6 +1779,7 @@ function openAppForm(opt = {}) {
     importo: a?.importo ?? opt.importo ?? '',
     acconto: a?.acconto ?? opt.acconto ?? '',
     pagamento: PAGAMENTI[a?.pagamento ?? opt.pagamento] ? (a?.pagamento ?? opt.pagamento) : 'da-saldare',
+    movimento: (a?.movimento ?? opt.movimento) === 'uscita' ? 'uscita' : 'entrata',
     stato: a?.stato ?? 'programmato',
     promemoria: a ? promemoriaDi(a) : promemoriaPredefinito()
   };
@@ -1793,12 +1844,17 @@ function openAppForm(opt = {}) {
 
         <div class="sezione">
           <h2>Pagamento</h2>
+          <input type="hidden" name="movimento" value="${esc(v.movimento)}">
+          <div class="seg seg-mov" id="segMov" role="group" aria-label="Tipo di movimento">
+            <button type="button" data-m="entrata" aria-pressed="${v.movimento === 'entrata'}"><span>${icon('down', 15)} Entrata</span><small>da incassare</small></button>
+            <button type="button" data-m="uscita" aria-pressed="${v.movimento === 'uscita'}"><span>${icon('up', 15)} Uscita</span><small>da pagare</small></button>
+          </div>
           <div class="row2">
             <label class="field"><span>Importo (€)</span><input class="input" name="importo" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${esc(virgola(v.importo))}"></label>
             <label class="field" id="campoAcconto"><span>Acconto versato (€)</span><input class="input" name="acconto" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${esc(virgola(v.acconto))}"></label>
           </div>
           <input type="hidden" name="pagamento" value="${esc(v.pagamento)}">
-          <div class="seg seg-pay" id="segPag">${Object.entries(PAGAMENTI).map(([k, t]) => `<button type="button" data-p="${k}" aria-pressed="${v.pagamento === k}">${t}</button>`).join('')}</div>
+          <div class="seg seg-pay" id="segPag" data-mov="${esc(v.movimento)}">${Object.keys(PAGAMENTI).map(k => `<button type="button" data-p="${k}" aria-pressed="${v.pagamento === k}">${ETICHETTE_PAGAMENTO[v.movimento][k]}</button>`).join('')}</div>
         </div>
       </div>
       <div class="page-foot">
@@ -1832,6 +1888,14 @@ function openAppForm(opt = {}) {
     };
     m.querySelector('#segPag').addEventListener('click', e => { const b = e.target.closest('button'); if (b) segnaPagamento(b.dataset.p); });
     segnaPagamento(f.pagamento.value);
+    // Entrata o uscita: cambia colori ed etichette dello stato del pagamento.
+    const segnaMovimento = mv => {
+      f.movimento.value = mv;
+      m.querySelectorAll('#segMov>button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === mv)));
+      $('#segPag', m).dataset.mov = mv;
+      m.querySelectorAll('#segPag>button').forEach(b => { b.textContent = ETICHETTE_PAGAMENTO[mv][b.dataset.p]; });
+    };
+    m.querySelector('#segMov').addEventListener('click', e => { const b = e.target.closest('button'); if (b) segnaMovimento(b.dataset.m); });
     const riempi = d => {
       ['nome', 'telefono', 'email', 'azienda', 'data', 'ora', 'durata', 'luogo', 'motivo', 'note'].forEach(k => {
         if (d[k] !== undefined && d[k] !== '' && d[k] !== null) {
@@ -1842,6 +1906,7 @@ function openAppForm(opt = {}) {
       if (d.importo) f.importo.value = virgola(d.importo);
       if (d.acconto) f.acconto.value = virgola(d.acconto);
       if (d.pagamento) segnaPagamento(d.pagamento);
+      if (d.movimento) segnaMovimento(d.movimento);
       if (d.contattoId) f.contattoId.value = d.contattoId;
       controlla();
     };
@@ -2030,10 +2095,10 @@ function openDettaglio(aid) {
       <div class="sezione">
         <h2>Pagamento</h2>
         <div class="griglia" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
-          <div><div class="cella-k">Importo</div><div class="cella-v">${haImporto(a) ? esc(euro(a.importo)) : '—'}</div></div>
-          <div><div class="cella-k">${statoPag(a) === 'acconto' ? 'Residuo · acconto ' + esc(euro(a.acconto)) : 'Da incassare'}</div><div class="cella-v" style="color:${residuo(a) ? 'var(--pay-due)' : 'var(--pay-ok)'}">${haImporto(a) ? esc(euro(residuo(a))) : '—'}</div></div>
+          <div><div class="cella-k">${movimentoDi(a) === 'uscita' ? 'Uscita' : 'Entrata'}</div><div class="cella-v" style="color:${haImporto(a) ? coloreMov(a) : 'inherit'}">${haImporto(a) ? esc(importoFirmato(a)) : '—'}</div></div>
+          <div><div class="cella-k">${ETICHETTE_PAGAMENTO[movimentoDi(a)]['da-saldare']}${statoPag(a) === 'acconto' ? ' · acconto ' + esc(euro(a.acconto)) : ''}</div><div class="cella-v" style="color:${residuo(a) ? coloreMov(a) : 'var(--color-muted)'}">${haImporto(a) ? esc(euro(residuo(a))) : '—'}</div></div>
         </div>
-        <div class="seg seg-pay">${Object.entries(PAGAMENTI).map(([k, t]) => `<button type="button" data-act="pagamento" data-id="${esc(aid)}" data-p="${k}" aria-pressed="${statoPag(a) === k}">${t}</button>`).join('')}</div>
+        <div class="seg seg-pay" data-mov="${movimentoDi(a)}">${Object.keys(PAGAMENTI).map(k => `<button type="button" data-act="pagamento" data-id="${esc(aid)}" data-p="${k}" aria-pressed="${statoPag(a) === k}">${etichettaPag(a, k)}</button>`).join('')}</div>
         ${haImporto(a) ? '' : `<button class="btn btn-ghost" data-act="modificaApp" data-id="${esc(aid)}" style="align-self:flex-start">${icon('euro', 16)} Aggiungi importo</button>`}
       </div>
 
