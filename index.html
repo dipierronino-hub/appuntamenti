@@ -231,6 +231,11 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 .griglia.verticale>*:first-child{border-top:0}
 .cella-k{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--color-faint)}
 .cella-v{font-weight:800;font-size:20px;line-height:1.2;letter-spacing:-.02em;overflow-wrap:anywhere}
+/* Data, ora e fine nel dettaglio: gli orari non vanno mai a capo */
+.griglia-orari{grid-template-columns:minmax(0,1fr) auto auto}
+.griglia-orari>*:not(:first-child) .cella-v{white-space:nowrap;overflow-wrap:normal;font-variant-numeric:tabular-nums}
+/* Campi data e ora: valore intero e leggibile anche con caratteri grandi */
+.input[type="date"],.input[type="time"]{min-width:0;font-variant-numeric:tabular-nums;padding-right:10px}
 .riga{display:flex;align-items:center;gap:12px;padding:13px 14px;border-top:1px solid var(--color-divider);min-width:0;transition:background .25s ease}
 .riga:first-child{border-top:0}
 .riga .testo{flex:1;min-width:0}
@@ -455,7 +460,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.3.1';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
 const GOOGLE_CLIENT_ID = "215870183788-sahmel22cqnd110ff1lrsf8tch3s1lco.apps.googleusercontent.com";
 const GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly";
@@ -1812,8 +1817,8 @@ function openAppForm(opt = {}) {
 
         <label class="field"><span>Motivo</span><input class="input" name="motivo" maxlength="200" value="${esc(v.motivo)}" placeholder="Es. sopralluogo, scelta sanitari" style="font-weight:700;font-size:19px"></label>
 
-        <div class="row3">
-          <label class="field"><span>Data</span><input class="input" name="data" type="date" required value="${esc(v.data)}"></label>
+        <label class="field"><span>Data</span><input class="input" name="data" type="date" required value="${esc(v.data)}"></label>
+        <div class="row2">
           <label class="field"><span>Ora</span><input class="input" name="ora" type="time" required value="${esc(v.ora)}"></label>
           <label class="field"><span>Durata (min)</span><input class="input" name="durata" type="number" inputmode="numeric" min="5" max="480" step="5" required value="${esc(v.durata)}"></label>
         </div>
@@ -2085,7 +2090,7 @@ function openDettaglio(aid) {
         <h1 style="font-size:34px;overflow-wrap:anywhere;text-decoration:${a.stato === 'annullato' ? 'line-through' : 'none'}">${esc(a.motivo || c.nome || 'Appuntamento')}</h1>
       </div>
 
-      <div class="griglia" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)">
+      <div class="griglia griglia-orari">
         <div><div class="cella-k">Data</div><div class="cella-v" style="text-transform:capitalize">${esc(fmt(a.data, { weekday: 'short', day: 'numeric', month: 'short' }))}</div></div>
         <div><div class="cella-k">Ora</div><div class="cella-v">${esc(a.ora)}</div></div>
         <div><div class="cella-k">Fine</div><div class="cella-v">${esc(fineApp(a))}</div></div>
