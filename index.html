@@ -3,213 +3,357 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f2f2f3">
+<meta name="theme-color" content="#06070d">
 <title>Appuntamenti</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;700&family=Barlow+Condensed:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <style>
-/* ===== Token "Industry": fondo chiaro tecnico, un solo accento acciaio ===== */
+/* ===== Tema "Neon": scuro profondo, accenti blu elettrico → ciano, superfici in vetro ===== */
 :root{
-  --color-bg:#f2f2f3;--color-surface:#e9e9ea;--color-text:#1d1f20;--color-accent:#5980a6;
-  --color-divider:color-mix(in srgb,#1d1f20 16%,transparent);
-  --color-neutral-100:#f5f5f8;--color-neutral-200:#e7e7ea;--color-neutral-300:#d4d4d7;--color-neutral-400:#b7b7ba;--color-neutral-500:#98989b;--color-neutral-600:#7a7a7d;--color-neutral-700:#5d5d60;--color-neutral-800:#424244;--color-neutral-900:#2b2b2d;
-  --color-accent-100:#eef6ff;--color-accent-200:#d6ebff;--color-accent-300:#b5d9fd;--color-accent-400:#94bce3;--color-accent-500:#749dc4;--color-accent-600:#597ea3;--color-accent-700:#416180;--color-accent-800:#2c455d;--color-accent-900:#1d2d3d;
-  --color-warn:#9a5b00;--color-warn-bg:color-mix(in srgb,#c98a1a 14%,transparent);
-  --color-bad:#a8322a;
-  --font-heading:"Barlow Condensed",system-ui,sans-serif;--font-body:"Barlow",system-ui,sans-serif;
-  --shadow-lg:0 12px 32px color-mix(in srgb,#2b2b2d 22%,transparent);
-  --col:560px;--tabs-h:64px
+  --color-bg:#06070d;--color-bg-2:#0b0d19;
+  --color-text:#eef0ff;--color-muted:#a0a6c6;--color-faint:#6d7398;
+  --color-divider:rgba(255,255,255,.08);
+  --bg-glow:radial-gradient(70% 45% at 0% 0%,rgba(37,99,235,.26),transparent 70%),radial-gradient(60% 40% at 100% 8%,rgba(34,211,238,.16),transparent 70%),radial-gradient(60% 40% at 50% 100%,rgba(14,165,233,.12),transparent 70%);
+  --glass:linear-gradient(150deg,rgba(255,255,255,.075),rgba(255,255,255,.022));
+  --glass-solid:rgba(14,16,30,.78);
+  --glass-border:rgba(255,255,255,.09);
+  --glass-hi:rgba(255,255,255,.16);
+  --input-bg:rgba(255,255,255,.05);
+  --accent:#3b82f6;--accent-2:#22d3ee;--accent-text:#93c5fd;
+  --grad:linear-gradient(135deg,#3b82f6 0%,#0ea5e9 50%,#22d3ee 100%);
+  --grad-soft:linear-gradient(135deg,rgba(59,130,246,.24),rgba(34,211,238,.14));
+  --grad-text:linear-gradient(90deg,#93c5fd,#67e8f9);
+  --on-grad:#ffffff;
+  --glow:0 8px 28px rgba(37,99,235,.45),0 2px 12px rgba(34,211,238,.22);
+  --glow-sm:0 4px 16px rgba(37,99,235,.35);
+  --shadow-card:0 10px 30px rgba(0,0,0,.35);
+  --shadow-lg:0 24px 60px rgba(0,0,0,.6);
+  --st-prog:#7db4ff;--st-prog-bg:rgba(59,130,246,.18);
+  --st-conf:#5ee6f7;--st-conf-bg:rgba(34,211,238,.14);
+  --st-comp:#4ade9b;--st-comp-bg:rgba(16,185,129,.16);
+  --st-ann:#9aa3b8;--st-ann-bg:rgba(148,163,184,.13);
+  --st-late:#ff8a80;--st-late-bg:rgba(255,107,107,.16);
+  --st-warn:#fcd34d;--st-warn-bg:rgba(251,191,36,.14);
+  --wa:#25d366;
+  --r-lg:22px;--r-md:16px;--r-sm:12px;
+  --font:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --ease:cubic-bezier(.2,.8,.2,1);--spring:cubic-bezier(.34,1.4,.5,1);
+  --col:560px;--tabs-h:66px;
+  /* alias usati negli stili in linea */
+  --color-accent:var(--accent);--color-accent-700:var(--accent-text);
+  --color-neutral-600:var(--color-faint);--color-neutral-700:var(--color-muted);
+  --color-warn:var(--st-warn);--color-bad:var(--st-late);
+  color-scheme:dark
 }
-/* Tema scuro: le rampe si invertono, l'accento resta acciaio. */
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --color-bg:#16191c;--color-surface:#1e2226;--color-text:#e4e6e8;--color-accent:#7fa3c6;
-  --color-divider:color-mix(in srgb,#e4e6e8 18%,transparent);
-  --color-neutral-100:#1e2023;--color-neutral-200:#0f1113;--color-neutral-300:#3a3b3e;--color-neutral-400:#55565a;--color-neutral-500:#77787c;--color-neutral-600:#97989c;--color-neutral-700:#b4b5b9;--color-neutral-800:#d0d1d4;--color-neutral-900:#ececef;
-  --color-accent-100:#1d2d3d;--color-accent-200:#2c455d;--color-accent-300:#416180;--color-accent-400:#597ea3;--color-accent-500:#749dc4;--color-accent-600:#94bce3;--color-accent-700:#b5d9fd;--color-accent-800:#d6ebff;--color-accent-900:#eef6ff;
-  --color-warn:#e7b25a;--color-bad:#ef8a80;
-  --shadow-lg:0 12px 32px rgba(0,0,0,.55)
-}}
-:root[data-theme="dark"]{
-  --color-bg:#16191c;--color-surface:#1e2226;--color-text:#e4e6e8;--color-accent:#7fa3c6;
-  --color-divider:color-mix(in srgb,#e4e6e8 18%,transparent);
-  --color-neutral-100:#1e2023;--color-neutral-200:#0f1113;--color-neutral-300:#3a3b3e;--color-neutral-400:#55565a;--color-neutral-500:#77787c;--color-neutral-600:#97989c;--color-neutral-700:#b4b5b9;--color-neutral-800:#d0d1d4;--color-neutral-900:#ececef;
-  --color-accent-100:#1d2d3d;--color-accent-200:#2c455d;--color-accent-300:#416180;--color-accent-400:#597ea3;--color-accent-500:#749dc4;--color-accent-600:#94bce3;--color-accent-700:#b5d9fd;--color-accent-800:#d6ebff;--color-accent-900:#eef6ff;
-  --color-warn:#e7b25a;--color-bad:#ef8a80;
-  --shadow-lg:0 12px 32px rgba(0,0,0,.55)
+:root[data-theme="light"]{
+  --color-bg:#f3f4fb;--color-bg-2:#ffffff;
+  --color-text:#15162c;--color-muted:#585d7e;--color-faint:#8b90ad;
+  --color-divider:rgba(21,22,44,.08);
+  --bg-glow:radial-gradient(70% 45% at 0% 0%,rgba(59,130,246,.14),transparent 70%),radial-gradient(60% 40% at 100% 8%,rgba(34,211,238,.12),transparent 70%);
+  --glass:linear-gradient(150deg,rgba(255,255,255,.96),rgba(255,255,255,.78));
+  --glass-solid:rgba(255,255,255,.82);
+  --glass-border:rgba(21,22,44,.07);
+  --glass-hi:rgba(21,22,44,.14);
+  --input-bg:rgba(21,22,44,.045);
+  --accent:#2563eb;--accent-2:#0891b2;--accent-text:#1d4ed8;
+  --grad-soft:linear-gradient(135deg,rgba(37,99,235,.12),rgba(8,145,178,.08));
+  --grad-text:linear-gradient(90deg,#2563eb,#0891b2);
+  --glow:0 8px 24px rgba(37,99,235,.32),0 2px 10px rgba(8,145,178,.18);
+  --glow-sm:0 4px 14px rgba(37,99,235,.28);
+  --shadow-card:0 6px 22px rgba(30,27,75,.08);
+  --shadow-lg:0 24px 60px rgba(30,27,75,.2);
+  --st-prog:#1d4ed8;--st-prog-bg:rgba(37,99,235,.1);
+  --st-conf:#0e7490;--st-conf-bg:rgba(8,145,178,.11);
+  --st-comp:#047857;--st-comp-bg:rgba(16,185,129,.13);
+  --st-ann:#64748b;--st-ann-bg:rgba(100,116,139,.12);
+  --st-late:#dc2626;--st-late-bg:rgba(239,68,68,.1);
+  --st-warn:#b45309;--st-warn-bg:rgba(245,158,11,.14);
+  --wa:#15a34a;
+  color-scheme:light
 }
 *,*::before,*::after{box-sizing:border-box}
 [hidden]{display:none!important}
-html{-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--color-neutral-200);color:var(--color-text);font-family:var(--font-body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
-h1,h2,h3,h4{font-family:var(--font-heading);font-weight:600;line-height:1.12;letter-spacing:-.015em;margin:0}
-button,input,select,textarea{font:inherit;color:inherit}
-a{color:var(--color-accent-700);text-underline-offset:3px}
-a:hover{color:var(--color-accent-800)}
+html{-webkit-text-size-adjust:100%;background:var(--color-bg)}
+body{margin:0;min-height:100vh;background:var(--bg-glow),var(--color-bg);background-attachment:fixed;color:var(--color-text);font-family:var(--font);font-size:15px;line-height:1.5;letter-spacing:-.005em;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+h1,h2,h3,h4{font-family:var(--font);font-weight:800;line-height:1.1;letter-spacing:-.03em;margin:0}
+button,input,select,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+a{color:var(--accent-text);text-underline-offset:3px}
 :focus{outline:none}
-:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
-::selection{background:color-mix(in srgb,var(--color-accent) 30%,transparent)}
+:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px;border-radius:var(--r-sm)}
+::selection{background:rgba(59,130,246,.35)}
 .noscroll::-webkit-scrollbar{display:none}
 @keyframes slideIn{from{transform:translateX(100%)}to{transform:none}}
+@keyframes slideOut{to{transform:translateX(100%)}}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+@keyframes sheetDown{to{transform:translateY(100%)}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--color-bad) 50%,transparent)}50%{box-shadow:0 0 0 10px transparent}}
+@keyframes fadeOut{to{opacity:0}}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,107,107,.55)}50%{box-shadow:0 0 0 12px rgba(255,107,107,0)}}
+@keyframes nowPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.6)}50%{box-shadow:0 0 0 6px rgba(34,211,238,0)}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 
-/* ===== Oggetti "blueprint": bordo sottile, angoli squadrati, crocini di registro ===== */
-.blueprint{position:relative;border:1px solid var(--color-divider);border-radius:0}
-.blueprint>.corner{position:absolute;width:11px;height:11px;color:color-mix(in srgb,var(--color-text) 55%,transparent);pointer-events:none}
-.blueprint>.corner::before,.blueprint>.corner::after{content:"";position:absolute;background:currentColor}
-.blueprint>.corner::before{left:5px;top:0;width:1px;height:100%}
-.blueprint>.corner::after{top:5px;left:0;width:100%;height:1px}
-.blueprint>.corner.tl{top:-6px;left:-6px}.blueprint>.corner.tr{top:-6px;right:-6px}
-.blueprint>.corner.bl{bottom:-6px;left:-6px}.blueprint>.corner.br{bottom:-6px;right:-6px}
+/* ===== Superfici in vetro ===== */
+.blueprint,.glass{position:relative;background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--r-lg);box-shadow:var(--shadow-card)}
+.corner{display:none}
+.grad-text{background:var(--grad-text);-webkit-background-clip:text;background-clip:text;color:transparent}
 
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;text-decoration:none;font-family:var(--font-heading);font-weight:600;font-size:14px;line-height:1.2;color:var(--color-text);background:transparent;border:1px solid var(--color-divider);border-radius:0;padding:7px 12px;min-height:36px}
+/* ===== Pulsanti ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;text-decoration:none;font-weight:600;font-size:14px;line-height:1.2;color:var(--color-text);background:var(--input-bg);border:1px solid var(--glass-border);border-radius:var(--r-sm);padding:8px 14px;min-height:38px;transition:transform .2s var(--ease),background .3s ease,box-shadow .3s ease,border-color .3s ease,color .3s ease}
 .btn svg{display:block;flex:none}
+.btn:active{transform:scale(.96)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
-.btn-primary{background:var(--color-accent);border-color:var(--color-accent);color:var(--color-bg)}
-.btn-primary:hover{background:var(--color-accent-600);color:var(--color-bg)}
-.btn-primary:active{background:var(--color-accent-700)}
-.btn-secondary:hover{background:color-mix(in srgb,var(--color-text) 7%,transparent);color:var(--color-text)}
-.btn-secondary:active{background:color-mix(in srgb,var(--color-text) 14%,transparent)}
-.btn-ghost{color:var(--color-accent-700);border-color:transparent;padding-inline:4px}
-.btn-ghost:hover{background:color-mix(in srgb,var(--color-accent) 10%,transparent);color:var(--color-accent-700)}
-.btn-ghost:active{background:color-mix(in srgb,var(--color-accent) 18%,transparent)}
-.btn-danger{color:var(--color-bad)}
-.btn-danger:hover{background:color-mix(in srgb,var(--color-bad) 8%,transparent);color:var(--color-bad)}
-.btn-icon{width:36px;height:36px;padding:0}
+.btn-primary{background:var(--grad);border-color:transparent;color:var(--on-grad);box-shadow:var(--glow-sm)}
+.btn-primary:hover{box-shadow:var(--glow);color:var(--on-grad)}
+.btn-secondary:hover{background:var(--glass-hi);border-color:var(--glass-hi)}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--accent-text);padding-inline:8px}
+.btn-ghost:hover{background:var(--grad-soft)}
+.btn-danger{color:var(--st-late)}
+.btn-danger:hover{background:var(--st-late-bg);border-color:transparent;color:var(--st-late)}
+.btn-icon{width:40px;height:40px;padding:0;border-radius:50%}
 .btn-block{width:100%}
+.chip-oggi{padding:4px 12px!important;min-height:0!important;font-size:12px!important;border-radius:999px!important}
 
-.card-kicker{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700)}
-.card-title{font-family:var(--font-heading);font-weight:600;font-size:17px;line-height:1.2}
-.card-meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-neutral-700)}
-.muted{color:var(--color-neutral-700);font-size:13px}
-.err{color:var(--color-bad);font-size:13px;min-height:1.2em;margin:0}
+/* ===== Tipografia di supporto ===== */
+.card-kicker{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--accent-text)}
+.head .card-kicker,.kicker-grad{background:var(--grad-text);-webkit-background-clip:text;background-clip:text;color:transparent}
+.card-title{font-weight:700;font-size:16px;line-height:1.25;letter-spacing:-.015em}
+.card-meta{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--color-muted)}
+.muted{color:var(--color-muted);font-size:13px}
+.err{color:var(--st-late);font-size:13px;min-height:1.2em;margin:0}
 
-.tag{display:inline-flex;align-items:center;font-size:11px;letter-spacing:.02em;padding:3px 10px;border-radius:0;white-space:nowrap;flex:none}
-.tag-accent{background:var(--color-accent-100);color:var(--color-accent-800)}
-.tag-neutral{background:var(--color-neutral-100);color:var(--color-neutral-800)}
-.tag-outline{border:1px solid var(--color-accent);color:var(--color-accent-700);padding:2px 9px}
-.tag-warn{background:var(--color-warn-bg);color:var(--color-warn)}
-.tag-bad{border:1px solid var(--color-bad);color:var(--color-bad);padding:2px 9px}
+/* ===== Badge di stato ===== */
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;letter-spacing:.02em;padding:4px 10px;border-radius:999px;white-space:nowrap;flex:none;border:1px solid transparent}
+.tag::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+.tag-prog{background:var(--st-prog-bg);color:var(--st-prog);border-color:color-mix(in srgb,var(--st-prog) 25%,transparent)}
+.tag-conf{background:var(--st-conf-bg);color:var(--st-conf);border-color:color-mix(in srgb,var(--st-conf) 25%,transparent)}
+.tag-comp{background:var(--st-comp-bg);color:var(--st-comp);border-color:color-mix(in srgb,var(--st-comp) 25%,transparent)}
+.tag-ann{background:var(--st-ann-bg);color:var(--st-ann)}
+.tag-ann::before{box-shadow:none}
+.tag-warn{background:var(--st-warn-bg);color:var(--st-warn)}
+.tag-bad{background:var(--st-late-bg);color:var(--st-late);border-color:color-mix(in srgb,var(--st-late) 30%,transparent)}
+.tag-bad::before{animation:nowPulse 1.6s infinite}
+.tag-accent{background:var(--st-comp-bg);color:var(--st-comp)}
+.tag-neutral{background:var(--st-ann-bg);color:var(--st-ann)}
 
-.field{display:flex;flex-direction:column;gap:5px;min-width:0}
-.field>span{font-size:12px;color:color-mix(in srgb,var(--color-text) 70%,transparent)}
-.input{width:100%;min-height:42px;padding:8px 10px;font-size:16px;color:var(--color-text);caret-color:var(--color-accent);background:var(--color-surface);border:1px solid var(--color-divider);border-radius:0;-webkit-appearance:none;appearance:none}
-.input:hover{border-color:color-mix(in srgb,var(--color-text) 45%,transparent)}
-.input:focus-visible,.input:focus{border-color:var(--color-accent);outline:none}
-select.input{background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 16px) 50%,calc(100% - 11px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:28px}
-textarea.input{min-height:90px;resize:vertical;line-height:1.45}
+/* ===== Campi ===== */
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field>span{font-size:12px;font-weight:600;color:var(--color-muted)}
+.input{width:100%;min-height:46px;padding:10px 14px;font-size:16px;color:var(--color-text);caret-color:var(--accent-2);background:var(--input-bg);border:1px solid var(--glass-border);border-radius:var(--r-md);-webkit-appearance:none;appearance:none;transition:border-color .3s ease,box-shadow .3s ease,background .3s ease}
+.input::placeholder{color:var(--color-faint)}
+.input:hover{border-color:var(--glass-hi)}
+.input:focus,.input:focus-visible{border-color:var(--accent);box-shadow:0 0 0 4px rgba(59,130,246,.2);outline:none}
+select.input{background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:32px}
+select.input option{background:var(--color-bg-2);color:var(--color-text)}
+textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 .row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
 .row3{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,.8fr);gap:10px}
-.seg{display:flex;border:1px solid var(--color-divider)}
-.seg>button{flex:1;min-height:36px;border:0;background:transparent;cursor:pointer;font-size:13px;padding:6px 8px}
-.seg>button+button{border-left:1px solid var(--color-divider)}
-.seg>button[aria-pressed="true"]{background:var(--color-accent);color:var(--color-bg)}
-.seg>button:not([aria-pressed="true"]):hover{background:color-mix(in srgb,var(--color-text) 7%,transparent)}
+.seg{display:flex;gap:4px;padding:4px;background:var(--input-bg);border:1px solid var(--glass-border);border-radius:999px}
+.seg>button{flex:1;min-height:36px;border:0;border-radius:999px;background:transparent;cursor:pointer;font-size:13px;font-weight:600;color:var(--color-muted);padding:6px 10px;transition:all .3s var(--ease)}
+.seg>button[aria-pressed="true"]{background:var(--grad);color:var(--on-grad);box-shadow:var(--glow-sm)}
+.seg>button:not([aria-pressed="true"]):hover{color:var(--color-text);background:var(--glass-hi)}
+.seg>button:active{transform:scale(.96)}
 
-/* ===== Struttura dell'app ===== */
-#app{max-width:var(--col);margin:0 auto;min-height:100vh;min-height:100dvh;background:var(--color-bg)}
-@media (min-width:600px){#app{border-inline:1px solid var(--color-divider)}}
-.view{padding:calc(16px + env(safe-area-inset-top)) 20px calc(var(--tabs-h) + 110px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:18px}
+/* ===== Struttura ===== */
+#app{max-width:var(--col);margin:0 auto;min-height:100vh;min-height:100dvh}
+#main.entra>.view{animation:viewIn .38s var(--ease)}
+.entra-giorno{animation:viewIn .32s var(--ease)}
+.view{padding:calc(18px + env(safe-area-inset-top)) 18px calc(var(--tabs-h) + 130px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:20px}
 .head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
-.head h1{margin:2px 0 0;font-size:38px;text-transform:capitalize}
-.head .card-kicker{font-size:11px}
+.head h1{margin:4px 0 0;font-size:36px;text-transform:capitalize}
 
-.tabs{position:fixed;bottom:0;left:0;right:0;margin-inline:auto;max-width:var(--col);z-index:10;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));height:calc(var(--tabs-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);background:var(--color-bg);border-top:1px solid var(--color-divider)}
-.tab{position:relative;border:0;background:transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--color-neutral-600)}
-.tab+.tab{border-left:1px solid var(--color-divider)}
+/* Barra di navigazione fluttuante con indicatore che scorre */
+.tabs{position:fixed;z-index:10;left:12px;right:12px;margin-inline:auto;max-width:calc(var(--col) - 24px);bottom:calc(10px + env(safe-area-inset-bottom));height:var(--tabs-h);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:6px;background:var(--glass-solid);-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);border:1px solid var(--glass-border);border-radius:24px;box-shadow:var(--shadow-lg)}
+.tab-ind{position:absolute;top:6px;bottom:6px;left:6px;width:calc((100% - 12px) / 5);border-radius:18px;background:var(--grad-soft);border:1px solid rgba(59,130,246,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 0 22px rgba(59,130,246,.28);transform:translateX(calc(var(--i, 0) * 100%));transition:transform .45s var(--spring);pointer-events:none}
+.tab-ind::after{content:"";position:absolute;left:30%;right:30%;bottom:3px;height:3px;border-radius:3px;background:var(--grad);box-shadow:0 0 10px var(--accent-2)}
+.tab{position:relative;z-index:1;border:0;background:transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10.5px;font-weight:600;letter-spacing:.01em;color:var(--color-faint);border-radius:18px;transition:color .3s ease,transform .2s var(--ease)}
+.tab svg{transition:transform .35s var(--spring),filter .3s ease}
+.tab:active{transform:scale(.92)}
 .tab:hover{color:var(--color-text)}
-.tab[aria-current="page"]{color:var(--color-accent-700)}
-.tab[aria-current="page"]::before{content:"";position:absolute;top:-1px;left:0;right:0;height:2px;background:var(--color-accent)}
+.tab[aria-current="page"]{color:var(--color-text)}
+.tab[aria-current="page"] svg{transform:translateY(-1px) scale(1.1);color:var(--accent-text);filter:drop-shadow(0 0 6px rgba(96,165,250,.8))}
 
-.fabs{position:fixed;z-index:9;bottom:calc(var(--tabs-h) + 18px + env(safe-area-inset-bottom));right:max(20px,calc((100vw - var(--col)) / 2 + 20px));display:flex;gap:12px;align-items:center}
-.fab{display:grid;place-items:center;cursor:pointer;border:1px solid var(--color-divider);background:var(--color-bg);color:var(--color-text)}
-.fab.mic{width:48px;height:48px}
-.fab.mic:hover{background:var(--color-neutral-100)}
-.fab.add{width:58px;height:58px;background:var(--color-accent);border-color:var(--color-accent);color:var(--color-bg);box-shadow:var(--shadow-lg)}
-.fab.add:hover{background:var(--color-accent-600)}
-.fab.add:active{background:var(--color-accent-700)}
-.ascolto{background:var(--color-bad)!important;border-color:var(--color-bad)!important;color:#fff!important;animation:pulse 1.2s infinite}
+.fabs{position:fixed;z-index:9;bottom:calc(var(--tabs-h) + 26px + env(safe-area-inset-bottom));right:max(20px,calc((100vw - var(--col)) / 2 + 20px));display:flex;gap:12px;align-items:center}
+.fab{display:grid;place-items:center;cursor:pointer;border-radius:50%;transition:transform .25s var(--spring),box-shadow .3s ease,background .3s ease}
+.fab:active{transform:scale(.9)}
+.fab.mic{width:50px;height:50px;color:var(--color-text);background:var(--glass-solid);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid var(--glass-border);box-shadow:var(--shadow-card)}
+.fab.add{width:62px;height:62px;border:0;background:var(--grad);color:#fff;box-shadow:var(--glow)}
+.fab.add:hover{transform:translateY(-2px) rotate(90deg);box-shadow:0 12px 36px rgba(37,99,235,.6),0 2px 14px rgba(34,211,238,.35)}
+.ascolto{background:linear-gradient(135deg,#ff6b6b,#f43f5e)!important;border-color:transparent!important;color:#fff!important;animation:pulse 1.2s infinite}
 
-/* Schermate sovrapposte (dettaglio, modulo) e fogli dal basso */
+/* Schermate sovrapposte e fogli dal basso */
 .layer{position:fixed;inset:0;z-index:20}
-.page{position:absolute;top:0;bottom:0;left:0;right:0;margin-inline:auto;max-width:var(--col);background:var(--color-bg);overflow-y:auto;overscroll-behavior:contain;animation:slideIn .28s cubic-bezier(.2,.8,.2,1)}
-.page.up{animation:sheetUp .3s cubic-bezier(.2,.8,.2,1)}
-.page-bar{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:var(--color-bg);border-bottom:1px solid var(--color-divider)}
-.page-bar .card-kicker{font-size:11px}
-.page-body{padding:18px 20px calc(40px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:20px}
-.page-foot{position:sticky;bottom:0;z-index:3;display:flex;gap:10px;padding:12px 20px calc(12px + env(safe-area-inset-bottom));background:var(--color-bg);border-top:1px solid var(--color-divider)}
-.page-foot .btn{flex:1;min-height:46px;font-size:16px}
-.backdrop{position:absolute;inset:0;background:color-mix(in srgb,var(--color-neutral-900) 50%,transparent);animation:fadeIn .2s ease}
-.sheet{position:absolute;bottom:0;left:0;right:0;margin-inline:auto;max-width:var(--col);max-height:92vh;overflow-y:auto;overscroll-behavior:contain;background:var(--color-bg);border-top:1px solid var(--color-divider);padding:18px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;animation:sheetUp .28s cubic-bezier(.2,.8,.2,1);box-shadow:var(--shadow-lg)}
+.page{position:absolute;inset:0;margin-inline:auto;max-width:var(--col);background:var(--bg-glow),var(--color-bg);overflow-y:auto;overscroll-behavior:contain;animation:slideIn .34s var(--ease)}
+.page.up{animation:sheetUp .36s var(--ease)}
+.layer.chiude .page{animation:slideOut .26s ease-in forwards}
+.layer.chiude .page.up{animation:sheetDown .26s ease-in forwards}
+.layer.chiude .sheet{animation:sheetDown .24s ease-in forwards}
+.layer.chiude .backdrop{animation:fadeOut .24s ease-in forwards}
+.page-bar{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 12px 10px;background:var(--glass-solid);-webkit-backdrop-filter:blur(20px) saturate(160%);backdrop-filter:blur(20px) saturate(160%);border-bottom:1px solid var(--glass-border)}
+.page-bar .card-kicker{color:var(--color-muted)}
+.page-body{padding:20px 18px calc(40px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:22px}
+.page-body>*{animation:popIn .45s var(--ease) both}
+.page-body>*:nth-child(2){animation-delay:.03s}.page-body>*:nth-child(3){animation-delay:.06s}.page-body>*:nth-child(4){animation-delay:.09s}.page-body>*:nth-child(n+5){animation-delay:.12s}
+.page-foot{position:sticky;bottom:0;z-index:3;display:flex;gap:10px;padding:12px 18px calc(12px + env(safe-area-inset-bottom));background:var(--glass-solid);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border-top:1px solid var(--glass-border)}
+.page-foot .btn{flex:1;min-height:50px;font-size:16px;border-radius:var(--r-md)}
+.backdrop{position:absolute;inset:0;background:rgba(3,4,10,.62);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);animation:fadeIn .25s ease}
+.sheet{position:absolute;bottom:0;left:0;right:0;margin-inline:auto;max-width:var(--col);max-height:92vh;overflow-y:auto;overscroll-behavior:contain;background:var(--color-bg-2);background-image:var(--bg-glow);border:1px solid var(--glass-border);border-bottom:0;border-radius:28px 28px 0 0;padding:12px 20px calc(22px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px;animation:sheetUp .32s var(--ease);box-shadow:var(--shadow-lg)}
+.sheet::before{content:"";align-self:center;width:42px;height:5px;border-radius:5px;background:var(--glass-hi);margin-bottom:4px}
 .sheet h2{font-size:24px}
 .actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 
+/* Sezioni, righe, griglie */
 .sezione{display:flex;flex-direction:column;gap:10px}
-.sezione>h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;font-family:var(--font-body);font-weight:500;color:var(--color-neutral-700);display:flex;justify-content:space-between;align-items:center;gap:8px}
-.griglia{display:grid;border-top:1px solid var(--color-divider);border-left:1px solid var(--color-divider)}
-.griglia>*{border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:10px 12px;min-width:0}
-.cella-k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-600)}
-.cella-v{font-family:var(--font-heading);font-weight:600;font-size:20px;line-height:1.15;overflow-wrap:anywhere}
-.riga{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--color-divider);min-width:0}
-.riga:first-child{border-top:1px solid var(--color-divider)}
+.sezione>h2{font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--color-faint);display:flex;justify-content:space-between;align-items:center;gap:8px}
+#lista{display:flex;flex-direction:column;gap:8px}
+#lista>.riga,.riga.glass{background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--r-lg);box-shadow:var(--shadow-card)}
+#lista>.giorno-label{padding:10px 4px 0}
+.lista-righe{background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--r-lg);box-shadow:var(--shadow-card);overflow:hidden}
+.griglia{display:grid;background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--r-lg);box-shadow:var(--shadow-card);overflow:hidden}
+.griglia>*{padding:12px 14px;min-width:0;border-left:1px solid var(--color-divider)}
+.griglia>*:first-child{border-left:0}
+.griglia.verticale>*{border-left:0;border-top:1px solid var(--color-divider)}
+.griglia.verticale>*:first-child{border-top:0}
+.cella-k{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--color-faint)}
+.cella-v{font-weight:800;font-size:20px;line-height:1.2;letter-spacing:-.02em;overflow-wrap:anywhere}
+.riga{display:flex;align-items:center;gap:12px;padding:13px 14px;border-top:1px solid var(--color-divider);min-width:0;transition:background .25s ease}
+.riga:first-child{border-top:0}
 .riga .testo{flex:1;min-width:0}
 .riga .testo>div:first-child{overflow-wrap:anywhere}
 .riga.cliccabile{cursor:pointer}
-.riga.cliccabile:hover{background:color-mix(in srgb,var(--color-accent) 6%,transparent)}
-.avatar{width:42px;height:42px;flex:none;display:grid;place-items:center;border:1px solid var(--color-accent-400);color:var(--color-accent-700);font-family:var(--font-heading);font-weight:600;font-size:16px}
-.azioni-contatto{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--color-divider)}
-.azioni-contatto>*{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:62px;font-size:12px;color:var(--color-accent-700);text-decoration:none;background:transparent;border:0;cursor:pointer}
-.azioni-contatto>*+*{border-left:1px solid var(--color-divider)}
-.azioni-contatto>*:hover{background:color-mix(in srgb,var(--color-accent) 8%,transparent)}
-.azioni-contatto>[aria-disabled="true"]{opacity:.4;pointer-events:none}
-.avviso{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--color-warn-bg);color:var(--color-warn);font-size:13px;border-left:2px solid var(--color-warn)}
+.riga.cliccabile:hover{background:var(--glass-hi)}
+.riga.cliccabile:active{background:var(--grad-soft)}
+.riga>svg:last-child{color:var(--color-faint);flex:none}
+.ico{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:12px;background:var(--grad-soft);color:var(--accent-text);border:1px solid rgba(59,130,246,.22)}
+.avatar{width:44px;height:44px;flex:none;display:grid;place-items:center;border-radius:50%;background:var(--grad);color:#fff;font-weight:800;font-size:15px;letter-spacing:.02em;box-shadow:var(--glow-sm)}
+.avatar[data-t="1"]{background:linear-gradient(135deg,#06b6d4,#2563eb)}
+.avatar[data-t="2"]{background:linear-gradient(135deg,#10b981,#22d3ee)}
+.avatar[data-t="3"]{background:linear-gradient(135deg,#f59e0b,#f43f5e)}
+.avatar[data-t="4"]{background:linear-gradient(135deg,#0ea5e9,#22d3ee)}
+.azioni-contatto{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.azioni-contatto>*{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:76px;font-size:12.5px;font-weight:600;color:var(--color-text);text-decoration:none;background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--r-md);cursor:pointer;transition:transform .2s var(--ease),background .3s ease,box-shadow .3s ease}
+.azioni-contatto>*:active{transform:scale(.95)}
+.azioni-contatto>* svg{width:22px;height:22px}
+.azioni-contatto .az-tel svg{color:var(--st-comp);filter:drop-shadow(0 0 6px rgba(52,211,153,.5))}
+.azioni-contatto .az-wa svg{color:var(--wa);filter:drop-shadow(0 0 6px rgba(37,211,102,.5))}
+.azioni-contatto .az-mail svg{color:var(--accent-text);filter:drop-shadow(0 0 6px rgba(96,165,250,.5))}
+.azioni-contatto>*:hover{background:var(--glass-hi);color:var(--color-text)}
+.azioni-contatto>[aria-disabled="true"]{opacity:.35;pointer-events:none}
+.azioni-contatto>[aria-disabled="true"] svg{filter:none}
+.avviso{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;background:var(--st-warn-bg);color:var(--st-warn);font-size:13px;border:1px solid color-mix(in srgb,var(--st-warn) 30%,transparent);border-radius:var(--r-md)}
 .avviso svg{flex:none;margin-top:1px}
-.vuoto{padding:32px 20px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
-.storico{list-style:none;margin:0;padding:0;font-size:13px}
-.storico li{padding:8px 0 8px 14px;border-left:1px solid var(--color-divider);position:relative}
-.storico li::before{content:"";position:absolute;left:-3px;top:15px;width:5px;height:5px;background:var(--color-accent)}
-.email-card{padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.vuoto{padding:36px 20px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.vuoto>.ico{width:56px;height:56px;border-radius:18px}
+.storico{list-style:none;margin:0;padding:4px 0 4px 4px;font-size:13px;color:var(--color-muted)}
+.storico li{padding:8px 0 8px 18px;border-left:2px solid var(--color-divider);position:relative}
+.storico li::before{content:"";position:absolute;left:-6px;top:13px;width:10px;height:10px;border-radius:50%;background:var(--grad);box-shadow:0 0 8px rgba(59,130,246,.6)}
+.email-card{padding:12px 14px;display:flex;flex-direction:column;gap:4px}
 .email-card .card-title{font-size:15px}
 
-.giorno-label{font-family:var(--font-heading);font-weight:600;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--color-accent-700);padding-top:6px}
-.app-item{display:grid;grid-template-columns:52px minmax(0,1fr);gap:12px;cursor:pointer}
-.app-item .ora1{font-family:var(--font-heading);font-weight:600;font-size:20px;line-height:1}
-.app-item .ora2{font-size:11px;color:var(--color-neutral-600);margin-top:4px}
-.app-item .box{padding:12px 14px;display:flex;flex-direction:column;gap:4px}
-.app-item:hover .box{background:color-mix(in srgb,var(--color-accent) 6%,transparent)}
-.ora-adesso{display:flex;align-items:center;gap:8px;color:var(--color-accent-700);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
-.ora-adesso span:first-child{font-family:var(--font-heading);font-weight:600;font-size:13px}
-.ora-adesso span:last-child{flex:1;height:1px;background:var(--color-accent)}
+/* ===== Agenda ===== */
+.toggle{display:flex;gap:3px;padding:3px;background:var(--input-bg);border:1px solid var(--glass-border);border-radius:14px;flex:none}
+.toggle>button{width:40px;height:36px;display:grid;place-items:center;border:0;border-radius:11px;cursor:pointer;background:transparent;color:var(--color-muted);transition:all .3s var(--ease)}
+.toggle>button[aria-pressed="true"]{background:var(--grad);color:#fff;box-shadow:var(--glow-sm)}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.week-day{height:70px;border:1px solid var(--glass-border);border-radius:18px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:var(--glass);color:var(--color-text);transition:transform .25s var(--spring),background .3s ease,box-shadow .3s ease,color .3s ease}
+.week-day:active{transform:scale(.92)}
+.week-day .wd{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--color-faint)}
+.week-day .wn{font-weight:800;font-size:20px;line-height:1;letter-spacing:-.02em}
+.week-day .dot{width:5px;height:5px;border-radius:50%;background:transparent}
+.week-day.has .dot{background:var(--accent-2);box-shadow:0 0 8px var(--accent-2)}
+.week-day.oggi{border-color:rgba(59,130,246,.55)}
+.week-day.oggi .wn{background:var(--grad-text);-webkit-background-clip:text;background-clip:text;color:transparent}
+.week-day.sel{background:var(--grad);border-color:transparent;color:#fff;box-shadow:var(--glow);transform:translateY(-2px)}
+.week-day.sel .wd{color:rgba(255,255,255,.8)}
+.week-day.sel .wn{color:#fff;-webkit-text-fill-color:#fff;background:none}
+.week-day.sel.has .dot{background:#fff;box-shadow:0 0 8px #fff}
+.summary{font-size:13px;color:var(--color-muted)}
 
-.toast{position:fixed;left:0;right:0;margin-inline:auto;width:max-content;max-width:calc(100vw - 32px);bottom:calc(var(--tabs-h) + 92px + env(safe-area-inset-bottom));z-index:40;background:var(--color-text);color:var(--color-bg);padding:11px 16px;font-size:14px;box-shadow:var(--shadow-lg);animation:toastIn .25s ease}
-.toast[data-tipo="err"]{background:var(--color-bad);color:#fff}
-.layer~.toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+.giorno-label{font-weight:800;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text);padding-top:6px}
+.app-item{display:grid;grid-template-columns:54px minmax(0,1fr);gap:10px;cursor:pointer;transition:transform .2s var(--ease)}
+.app-item:active{transform:scale(.98)}
+.app-item .ora1{font-weight:800;font-size:19px;line-height:1;letter-spacing:-.02em}
+.app-item .ora2{font-size:11.5px;color:var(--color-faint);margin-top:5px;font-weight:500}
+.app-item .box{padding:13px 15px 13px 18px;display:flex;flex-direction:column;gap:5px;overflow:hidden;transition:background .3s ease,box-shadow .3s ease,border-color .3s ease}
+.app-item .box::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:0 4px 4px 0;background:var(--st-c,var(--accent));box-shadow:0 0 12px var(--st-c,var(--accent))}
+.app-item:hover .box{border-color:var(--glass-hi);box-shadow:var(--shadow-card),0 0 0 1px rgba(59,130,246,.15)}
+[data-stato="programmato"]{--st-c:var(--st-prog)}
+[data-stato="confermato"]{--st-c:var(--st-conf)}
+[data-stato="completato"]{--st-c:var(--st-comp)}
+[data-stato="annullato"]{--st-c:var(--st-ann)}
+[data-stato][data-ritardo]{--st-c:var(--st-late)}
+.ora-adesso{display:flex;align-items:center;gap:10px;color:var(--accent-2);font-size:12px}
+.ora-adesso span:first-child{font-weight:800;letter-spacing:.04em;padding:3px 10px;border-radius:999px;background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.3)}
+.ora-adesso span:last-child{flex:1;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent-2),transparent);box-shadow:0 0 10px rgba(34,211,238,.5)}
 
-#login{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px 20px;background:var(--color-bg)}
-.login-card{width:100%;max-width:380px;padding:28px 24px;display:flex;flex-direction:column;gap:14px}
-.login-card h1{font-size:44px}
-.banner{padding:10px 12px;background:var(--color-warn-bg);color:var(--color-warn);font-size:13px}
+/* Linea del tempo */
+.tl{position:relative}
+.tl-ora{position:absolute;left:0;right:0;display:flex;align-items:flex-start;gap:8px}
+.tl-ora span:first-child{width:42px;font-size:11px;font-weight:600;color:var(--color-faint);margin-top:-8px}
+.tl-ora span:last-child{flex:1;height:1px;background:var(--color-divider)}
+.tl-now{position:absolute;left:40px;right:0;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent-2),rgba(34,211,238,.15));z-index:2;box-shadow:0 0 10px rgba(34,211,238,.6)}
+.tl-now::before{content:"";position:absolute;left:-4px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--accent-2);animation:nowPulse 1.8s infinite}
+.tl-block{position:absolute;padding:7px 10px 7px 13px;cursor:pointer;display:flex;flex-direction:column;gap:2px;overflow:hidden;border-radius:14px;background:linear-gradient(135deg,color-mix(in srgb,var(--st-c,var(--accent)) 20%,transparent),color-mix(in srgb,var(--st-c,var(--accent)) 6%,transparent));border:1px solid color-mix(in srgb,var(--st-c,var(--accent)) 35%,transparent);transition:transform .2s var(--ease),box-shadow .3s ease}
+.tl-block::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--st-c,var(--accent));box-shadow:0 0 10px var(--st-c,var(--accent))}
+.tl-block:hover{box-shadow:0 0 18px color-mix(in srgb,var(--st-c,var(--accent)) 35%,transparent)}
+.tl-block:active{transform:scale(.98)}
+.tl-block .tl-t{display:flex;justify-content:space-between;gap:6px;font-size:11px;font-weight:600;color:var(--st-c,var(--accent-text))}
+.tl-block .tl-ti{font-weight:700;font-size:14px;line-height:1.2;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.tl-block .tl-c{font-size:11px;color:var(--color-muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* Calendario */
+.cal{padding:10px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-dow{height:26px;display:grid;place-items:center;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--color-faint)}
+.cal-cell{height:50px;border:1px solid transparent;border-radius:14px;padding:6px 4px;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;align-items:center;background:transparent;color:var(--color-text);transition:transform .25s var(--spring),background .3s ease,box-shadow .3s ease}
+.cal-cell:hover{background:var(--glass-hi)}
+.cal-cell:active{transform:scale(.9)}
+.cal-cell .n{font-weight:700;font-size:15px;line-height:1}
+.cal-cell .dots{display:flex;gap:3px;align-items:center;min-height:6px}
+.cal-cell .dots i{width:5px;height:5px;border-radius:50%;background:var(--accent-2);box-shadow:0 0 6px var(--accent-2)}
+.cal-cell .dots span{font-size:9px;font-weight:700;line-height:1;color:var(--color-muted)}
+.cal-cell.fuori{opacity:.3}
+.cal-cell.oggi{border-color:rgba(59,130,246,.55)}
+.cal-cell.oggi .n{background:var(--grad-text);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cal-cell.sel{background:var(--grad);color:#fff;box-shadow:var(--glow)}
+.cal-cell.sel .n{color:#fff;-webkit-text-fill-color:#fff;background:none}
+.cal-cell.sel .dots i{background:#fff;box-shadow:0 0 6px #fff}
+.cal-cell.sel .dots span{color:#fff}
+
+/* Ricerca */
+.search{position:relative}
+.search>svg{position:absolute;left:15px;top:14px;color:var(--color-faint);pointer-events:none}
+.search>.input{padding-left:44px;border-radius:999px;min-height:50px}
+
+.toast{position:fixed;left:0;right:0;margin-inline:auto;width:max-content;max-width:calc(100vw - 32px);bottom:calc(var(--tabs-h) + 104px + env(safe-area-inset-bottom));z-index:40;background:var(--glass-solid);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--glass-border);color:var(--color-text);padding:12px 18px;border-radius:999px;font-size:14px;font-weight:600;box-shadow:var(--shadow-lg);animation:toastIn .35s var(--spring)}
+.toast[data-tipo="ok"]::before{content:"✓";display:inline-grid;place-items:center;width:20px;height:20px;margin-right:8px;border-radius:50%;background:linear-gradient(135deg,#10b981,#34d399);color:#fff;font-size:12px}
+.toast[data-tipo="err"]{background:linear-gradient(135deg,rgba(244,63,94,.92),rgba(255,107,107,.92));color:#fff;border-color:transparent}
+.layer~.toast{bottom:calc(92px + env(safe-area-inset-bottom))}
+@keyframes toastIn{from{opacity:0;transform:translateY(14px) scale(.95)}to{opacity:1;transform:none}}
+
+#login{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px 20px}
+.login-card{width:100%;max-width:380px;padding:30px 24px;display:flex;flex-direction:column;gap:14px;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);animation:popIn .5s var(--ease)}
+.login-card h1{font-size:40px}
+.login-logo{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;background:var(--grad);color:#fff;box-shadow:var(--glow);margin-bottom:6px}
+.banner{padding:12px 14px;background:var(--st-warn-bg);color:var(--st-warn);font-size:13px;border-radius:var(--r-md)}
 </style>
 </head>
 <body>
 
 <div id="login" hidden>
-  <form id="loginForm" class="login-card blueprint">
-    <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+  <form id="loginForm" class="login-card glass">
     <div>
-      <div class="card-kicker" style="font-size:11px">Agenda personale</div>
+      <div class="login-logo"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></div>
+      <div class="card-kicker kicker-grad">Agenda personale</div>
       <h1>Appuntamenti</h1>
     </div>
     <div id="configBanner" class="banner" hidden>Configurazione Firebase mancante: vedi le istruzioni nella specifica (sezione 9).</div>
     <label class="field"><span>Email</span><input class="input" name="email" type="email" required autocomplete="username"></label>
     <label class="field"><span>Password</span><input class="input" name="password" type="password" required autocomplete="current-password"></label>
-    <button class="btn btn-primary btn-block" style="min-height:46px;font-size:16px;margin-top:4px">Accedi</button>
+    <button class="btn btn-primary btn-block" style="min-height:50px;font-size:16px;margin-top:4px">Accedi</button>
     <p id="loginErr" class="err"></p>
   </form>
 </div>
@@ -217,15 +361,16 @@ textarea.input{min-height:90px;resize:vertical;line-height:1.45}
 <div id="app" hidden>
   <main id="main"></main>
   <nav class="tabs" aria-label="Sezioni">
-    <button class="tab" data-act="nav" data-v="agenda"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Agenda</span></button>
-    <button class="tab" data-act="nav" data-v="calendario"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Mese</span></button>
-    <button class="tab" data-act="nav" data-v="cerca"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span>Cerca</span></button>
-    <button class="tab" data-act="nav" data-v="contatti"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.1a4 4 0 0 1 0 7.8M22 21a7 7 0 0 0-4-6.3"/></svg><span>Contatti</span></button>
-    <button class="tab" data-act="nav" data-v="impostazioni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><span>Altro</span></button>
+    <span class="tab-ind" aria-hidden="true"></span>
+    <button class="tab" data-act="nav" data-v="agenda"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Agenda</span></button>
+    <button class="tab" data-act="nav" data-v="calendario"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span>Mese</span></button>
+    <button class="tab" data-act="nav" data-v="cerca"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span>Cerca</span></button>
+    <button class="tab" data-act="nav" data-v="contatti"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.1a4 4 0 0 1 0 7.8M22 21a7 7 0 0 0-4-6.3"/></svg><span>Contatti</span></button>
+    <button class="tab" data-act="nav" data-v="impostazioni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><span>Altro</span></button>
   </nav>
   <div class="fabs">
     <button id="mic" class="fab mic" data-act="voce" aria-label="Comando vocale"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></button>
-    <button class="fab add blueprint" data-act="nuovoApp" aria-label="Nuovo appuntamento"><i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="fab add" data-act="nuovoApp" aria-label="Nuovo appuntamento"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   </div>
 </div>
 
@@ -238,7 +383,7 @@ textarea.input{min-height:90px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
 const GOOGLE_CLIENT_ID = "215870183788-sahmel22cqnd110ff1lrsf8tch3s1lco.apps.googleusercontent.com";
 const GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly";
@@ -508,11 +653,18 @@ const ICON_PATHS = {
   undo: '<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>'
 };
 function icon(n, s = 18) {
-  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[n]}</svg>`;
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[n]}</svg>`;
 }
-const CORNERS = '<i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>';
+const CORNERS = '';
 
 // Iniziali per l'avatar del contatto (es. "Mario Rossi" -> "MR").
+// Colore dell'avatar stabile per nome (5 sfumature).
+function tintaAvatar(nome) {
+  let h = 0;
+  for (const ch of String(nome ?? '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % 5;
+}
+
 function iniziali(nome) {
   return String(nome ?? '').trim().split(/\s+/).slice(0, 2)
     .map(p => p.charAt(0).toUpperCase()).join('') || '?';
@@ -567,9 +719,15 @@ function apriLivello(html, { tipo = 'page', anim = '', onMount, refresh } = {}) 
 function openPage(html, onMount, opt = {}) { return apriLivello(html, { ...opt, onMount }); }
 function openModal(html, onMount) { return apriLivello(html, { tipo: 'sheet', onMount }); }
 
+// Chiusura con animazione: il livello esce subito dalla pila, l'elemento sparisce a fine transizione.
 function closeModal() {
   const l = livelli.pop();
-  if (l) l.el.remove();
+  if (!l) return;
+  const el = l.el;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.remove(); return; }
+  el.classList.add('chiude');
+  el.style.pointerEvents = 'none';
+  setTimeout(() => el.remove(), 260);
 }
 
 // Ridisegna la schermata in cima (es. dettaglio) dopo una modifica.
@@ -760,14 +918,13 @@ function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return n
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage non disponibile */ } }
 function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* storage non disponibile */ } }
 
+// Il tema scuro è la base; "auto" segue il telefono.
 function applicaTema(t) {
-  const root = document.documentElement;
-  if (t === 'chiaro') root.dataset.theme = 'light';
-  else if (t === 'scuro') root.dataset.theme = 'dark';
-  else delete root.dataset.theme;
-  const scuro = root.dataset.theme === 'dark' || (!root.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
-  $('meta[name="theme-color"]').content = scuro ? '#16191c' : '#f2f2f3';
+  const scuro = t === 'scuro' || (t === 'auto' && !matchMedia('(prefers-color-scheme: light)').matches);
+  document.documentElement.dataset.theme = scuro ? 'dark' : 'light';
+  $('meta[name="theme-color"]').content = scuro ? '#06070d' : '#f3f4fb';
 }
+matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => applicaTema(lsGet('tema') || 'scuro'));
 
 const MODELLO_IA_PREDEFINITO = 'gemini-2.5-flash';
 
@@ -842,7 +999,7 @@ function pulisciDatiIA(d) {
   };
 }
 
-applicaTema(lsGet('tema') || 'auto');
+applicaTema(lsGet('tema') || 'scuro');
 S.modoAgenda = lsGet('modo_agenda') === 'timeline' ? 'timeline' : 'lista';
 
 // ===================== COLLEGAMENTI ESTERNI =====================
@@ -970,7 +1127,7 @@ async function attivaNotifiche() {
 
 // ===================== VISTE =====================
 const ETICHETTE_STATO = { programmato: 'Programmato', confermato: 'Confermato', completato: 'Completato', annullato: 'Annullato' };
-const CLASSI_STATO = { programmato: 'tag-outline', confermato: 'tag-accent', completato: 'tag-neutral', annullato: 'tag-neutral' };
+const CLASSI_STATO = { programmato: 'tag-prog', confermato: 'tag-conf', completato: 'tag-comp', annullato: 'tag-ann' };
 const CHIUSI = ['completato', 'annullato'];
 const byDt = (x, y) => (x.data + x.ora).localeCompare(y.data + y.ora);
 
@@ -986,9 +1143,11 @@ function appuntamentiCompleti() {
 const appDelGiorno = iso => appuntamentiCompleti().filter(a => a.data === iso).sort(byDt);
 const fineApp = a => hhmm(minuti(a.ora) + (Number(a.durata) || 30));
 const passato = a => istante(a.data, a.ora) + (Number(a.durata) || 30) * 60000 < Date.now();
-const tagStato = a => `<span class="tag ${CLASSI_STATO[a.stato] || 'tag-neutral'}"${a.stato === 'annullato' ? ' style="text-decoration:line-through"' : ''}>${esc(ETICHETTE_STATO[a.stato] || a.stato)}</span>`;
+const tagStato = a => `<span class="tag ${CLASSI_STATO[a.stato] || 'tag-ann'}">${esc(ETICHETTE_STATO[a.stato] || a.stato)}</span>`;
 
 function render() {
+  const schede = ['agenda', 'calendario', 'cerca', 'contatti', 'impostazioni'];
+  $('.tabs').style.setProperty('--i', Math.max(0, schede.indexOf(S.vista)));
   document.querySelectorAll('.tab').forEach(b => {
     if (b.dataset.v === S.vista) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
@@ -1004,10 +1163,10 @@ function voceApp(a) {
   const inRitardo = a.data < todayISO() && !CHIUSI.includes(a.stato);
   return `<div class="app-item" data-act="apri" data-id="${esc(a.id)}" role="button" tabindex="0" style="opacity:${spento ? '.55' : '1'}">
     <div style="padding-top:12px"><div class="ora1">${esc(a.ora)}</div><div class="ora2">${esc(fineApp(a))}</div></div>
-    <div class="box blueprint">${CORNERS}
+    <div class="box glass" data-stato="${esc(a.stato)}"${inRitardo ? ' data-ritardo' : ''}>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <span class="card-kicker" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.azienda || plurale(Number(a.durata) || 30, 'minuto', 'minuti'))}</span>
-        <span style="display:flex;gap:4px">${a.rinvii ? `<span class="tag tag-warn">${esc(a.rinvii)}× rinv.</span>` : ''}${inRitardo ? '<span class="tag tag-bad">in ritardo</span>' : ''}${tagStato(a)}</span>
+        <span style="display:flex;gap:4px">${a.rinvii ? `<span class="tag tag-warn">${esc(a.rinvii)}× rinviato</span>` : ''}${inRitardo ? '<span class="tag tag-bad">in ritardo</span>' : ''}${tagStato(a)}</span>
       </div>
       <div class="card-title" style="text-decoration:${a.stato === 'annullato' ? 'line-through' : 'none'};overflow-wrap:anywhere">${esc(a.motivo || c.nome || 'Appuntamento')}</div>
       <div class="card-meta" style="flex-wrap:wrap"><span>${meta}</span></div>
@@ -1032,28 +1191,29 @@ function renderAgenda() {
   const titolo = fmt(sel, { day: 'numeric', month: 'long' }) + (selD.getFullYear() !== new Date().getFullYear() ? ' ' + selD.getFullYear() : '');
 
   const items = appDelGiorno(sel);
+  const anima = S.animaGiorno;
+  S.animaGiorno = false;
   const attivi = items.filter(a => a.stato !== 'annullato');
   const summary = attivi.length
     ? `${plurale(attivi.length, 'appuntamento', 'appuntamenti')} · dalle ${attivi[0].ora} alle ${fineApp(attivi[attivi.length - 1])}`
       + (sovrappostiNelGiorno(attivi) ? ' · <span style="color:var(--color-warn)">sovrapposizioni</span>' : '')
     : 'Nessun appuntamento';
 
-  const toggle = (modo, ic, label) => {
-    const on = S.modoAgenda === modo;
-    return `<button data-act="modoAgenda" data-m="${modo}" aria-label="${label}" aria-pressed="${on}" style="width:38px;height:36px;display:grid;place-items:center;border:0;${modo === 'timeline' ? 'border-left:1px solid var(--color-divider);' : ''}cursor:pointer;background:${on ? 'var(--color-accent)' : 'transparent'};color:${on ? 'var(--color-bg)' : 'var(--color-text)'}">${icon(ic)}</button>`;
-  };
+  const toggle = (modo, ic, label) =>
+    `<button data-act="modoAgenda" data-m="${modo}" aria-label="${label}" aria-pressed="${S.modoAgenda === modo}">${icon(ic)}</button>`;
 
   let corpo = '';
   if (!items.length) {
-    corpo = `<div class="blueprint vuoto">${CORNERS}
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.5" aria-hidden="true">${ICON_PATHS.cal}</svg>
+    corpo = `<div class="glass vuoto">
+      <span class="ico">${icon('cal', 26)}</span>
       <div class="card-title">Giornata libera</div>
       <div class="muted">Nessun appuntamento in programma.</div>
-      <button class="btn btn-secondary" data-act="nuovoApp" data-data="${sel}">Aggiungi appuntamento</button>
+      <button class="btn btn-primary" data-act="nuovoApp" data-data="${sel}">${icon('plus', 16)} Aggiungi appuntamento</button>
     </div>`;
   } else if (S.modoAgenda === 'timeline') {
     corpo = timeline(items, sel === oggi);
   } else {
+    // (la linea "Ora" compare prima del primo appuntamento non ancora iniziato)
     const adesso = oraAdesso();
     let messo = sel !== oggi;
     corpo = '<div style="display:flex;flex-direction:column;gap:16px">' + items.map(a => {
@@ -1069,31 +1229,31 @@ function renderAgenda() {
   $('#main').innerHTML = `<div class="view">
     <div class="head">
       <div><div class="card-kicker">${esc(kicker)}</div><h1>${esc(titolo)}</h1></div>
-      <div style="display:flex;border:1px solid var(--color-divider);flex:none">${toggle('lista', 'list', 'Lista')}${toggle('timeline', 'clock', 'Linea del tempo')}</div>
+      <div class="toggle">${toggle('lista', 'list', 'Lista')}${toggle('timeline', 'clock', 'Linea del tempo')}</div>
     </div>
     <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <button class="btn btn-ghost btn-icon" data-act="settimana" data-k="-7" aria-label="Settimana precedente">${icon('left')}</button>
         <div style="display:flex;gap:10px;align-items:center">
-          <span style="font-size:13px;color:var(--color-neutral-700)">${esc(weekLabel)}</span>
-          ${sel !== oggi ? '<button class="btn btn-secondary" data-act="vaiOggi" style="padding:2px 8px;font-size:12px;min-height:0">Oggi</button>' : ''}
+          <span style="font-size:13px;font-weight:600;color:var(--color-muted)">${esc(weekLabel)}</span>
+          ${sel !== oggi ? '<button class="btn btn-secondary chip-oggi" data-act="vaiOggi">Oggi</button>' : ''}
         </div>
         <button class="btn btn-ghost btn-icon" data-act="settimana" data-k="7" aria-label="Settimana successiva">${icon('right')}</button>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--color-divider)">
-        ${giorni.map((g, i) => {
-          const isSel = g === sel, isOggi = g === oggi;
+      <div class="week">
+        ${giorni.map(g => {
+          const cls = ['week-day', g === sel && 'sel', g === oggi && 'oggi', conApp.has(g) && 'has'].filter(Boolean).join(' ');
           const d = isoToDate(g);
-          return `<button data-act="giorno" data-d="${g}" aria-label="${esc(fmtData(g))}" aria-pressed="${isSel}" style="height:64px;border:0;${i ? 'border-left:1px solid var(--color-divider);' : ''}cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:${isSel ? 'var(--color-accent)' : 'transparent'};color:${isSel ? 'var(--color-bg)' : isOggi ? 'var(--color-accent-700)' : 'var(--color-text)'}">
-            <span style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.8">${d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 3)}</span>
-            <span style="font-family:var(--font-heading);font-weight:600;font-size:21px;line-height:1;text-decoration:${isOggi ? 'underline' : 'none'};text-underline-offset:4px">${d.getDate()}</span>
-            <span style="width:5px;height:5px;background:${conApp.has(g) ? (isSel ? 'var(--color-bg)' : 'var(--color-accent)') : 'transparent'}"></span>
+          return `<button class="${cls}" data-act="giorno" data-d="${g}" aria-label="${esc(fmtData(g))}" aria-pressed="${g === sel}">
+            <span class="wd">${d.toLocaleDateString('it-IT', { weekday: 'short' }).slice(0, 3)}</span>
+            <span class="wn">${d.getDate()}</span>
+            <span class="dot"></span>
           </button>`;
         }).join('')}
       </div>
     </div>
-    <div style="font-size:13px;color:var(--color-neutral-700)">${summary}</div>
-    ${corpo}
+    <div class="summary">${summary}</div>
+    <div class="${anima ? 'entra-giorno' : ''}" style="display:flex;flex-direction:column;gap:16px">${corpo}</div>
   </div>`;
 }
 
@@ -1121,20 +1281,18 @@ function timeline(items, eOggi) {
     return { x, ini, fine, col };
   });
   const nCol = Math.max(1, colonne.length);
-  return `<div style="position:relative;height:${altezza}px">
-    ${ore.map(m => `<div style="position:absolute;left:0;right:0;top:${(m - da) * PX}px;display:flex;align-items:flex-start;gap:8px">
-      <span style="width:40px;font-size:11px;color:var(--color-neutral-600);margin-top:-8px;background:var(--color-bg)">${hhmm(m)}</span>
-      <span style="flex:1;height:1px;background:var(--color-divider)"></span></div>`).join('')}
-    ${eOggi && mAdesso >= da && mAdesso <= a ? `<div style="position:absolute;left:36px;right:0;top:${(mAdesso - da) * PX}px;height:1px;background:var(--color-accent);z-index:2"><span style="position:absolute;left:-3px;top:-3px;width:7px;height:7px;background:var(--color-accent)"></span></div>` : ''}
+  return `<div class="tl" style="height:${altezza}px">
+    ${ore.map(m => `<div class="tl-ora" style="top:${(m - da) * PX}px"><span>${hhmm(m)}</span><span></span></div>`).join('')}
+    ${eOggi && mAdesso >= da && mAdesso <= a ? `<div class="tl-now" style="top:${(mAdesso - da) * PX}px"></div>` : ''}
     ${pos.map(({ x, ini, fine, col }) => {
       const spento = x.stato === 'annullato' || passato(x);
       const w = `(100% - 58px) / ${nCol}`;
       const alto = Math.max((fine - ini) * PX, 44);
-      return `<div class="blueprint" data-act="apri" data-id="${esc(x.id)}" role="button" tabindex="0" style="position:absolute;left:calc(52px + ${w} * ${col});width:calc(${w} - 6px);top:${(ini - da) * PX}px;height:${alto}px;background:var(--color-bg);border-color:var(--color-accent-400);padding:6px 10px;cursor:pointer;opacity:${spento ? '.55' : '1'};display:flex;flex-direction:column;gap:2px;overflow:hidden">
-        <i class="corner tl"></i><i class="corner br"></i>
-        <div style="display:flex;justify-content:space-between;gap:6px;font-size:11px;color:var(--color-accent-700)"><span>${esc(x.ora)}–${esc(fineApp(x))}</span><span>${esc(ETICHETTE_STATO[x.stato] || '')}</span></div>
-        <div style="font-family:var(--font-heading);font-weight:600;font-size:15px;line-height:1.15;text-decoration:${x.stato === 'annullato' ? 'line-through' : 'none'};overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(x.motivo || x.contatto.nome || 'Appuntamento')}</div>
-        ${alto >= 70 ? `<div style="font-size:11px;color:var(--color-neutral-700);overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(x.contatto.nome || '')}</div>` : ''}
+      const ritardo = x.data < todayISO() && !CHIUSI.includes(x.stato);
+      return `<div class="tl-block" data-stato="${esc(x.stato)}"${ritardo ? ' data-ritardo' : ''} data-act="apri" data-id="${esc(x.id)}" role="button" tabindex="0" style="left:calc(52px + ${w} * ${col});width:calc(${w} - 6px);top:${(ini - da) * PX + 1}px;height:${alto - 2}px;opacity:${spento ? '.5' : '1'}">
+        <div class="tl-t"><span>${esc(x.ora)}–${esc(fineApp(x))}</span><span>${esc(ETICHETTE_STATO[x.stato] || '')}</span></div>
+        <div class="tl-ti" style="text-decoration:${x.stato === 'annullato' ? 'line-through' : 'none'}">${esc(x.motivo || x.contatto.nome || 'Appuntamento')}</div>
+        ${alto >= 70 ? `<div class="tl-c">${esc(x.contatto.nome || '')}</div>` : ''}
       </div>`;
     }).join('')}
   </div>`;
@@ -1157,12 +1315,15 @@ function renderCalendario() {
     const fuori = d.getMonth() !== primo.getMonth();
     const isSel = g === S.calSel, isOggi = g === oggi;
     const n = perGiorno[g] || 0;
-    return `<button data-act="calGiorno" data-d="${g}" aria-label="${esc(fmtData(g))}${n ? ', ' + plurale(n, 'appuntamento', 'appuntamenti') : ''}" aria-pressed="${isSel}" style="height:52px;border:0;border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);padding:6px;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;background:${isSel ? 'var(--color-accent)' : 'transparent'};color:${isSel ? 'var(--color-bg)' : isOggi ? 'var(--color-accent-700)' : 'var(--color-text)'};opacity:${fuori ? '.35' : '1'}">
-      <span style="font-family:var(--font-heading);font-weight:600;font-size:16px;line-height:1;text-decoration:${isOggi ? 'underline' : 'none'};text-underline-offset:3px">${d.getDate()}</span>
-      <span style="display:flex;gap:2px;align-items:center">${Array.from({ length: Math.min(n, 3) }, () => `<i style="width:5px;height:5px;background:${isSel ? 'var(--color-bg)' : 'var(--color-accent)'}"></i>`).join('')}${n > 3 ? `<span style="font-size:9px;line-height:1">+${n - 3}</span>` : ''}</span>
+    const cls = ['cal-cell', fuori && 'fuori', isSel && 'sel', isOggi && 'oggi'].filter(Boolean).join(' ');
+    return `<button class="${cls}" data-act="calGiorno" data-d="${g}" aria-label="${esc(fmtData(g))}${n ? ', ' + plurale(n, 'appuntamento', 'appuntamenti') : ''}" aria-pressed="${isSel}">
+      <span class="n">${d.getDate()}</span>
+      <span class="dots">${'<i></i>'.repeat(Math.min(n, 3))}${n > 3 ? `<span>+${n - 3}</span>` : ''}</span>
     </button>`;
   }).join('');
   const items = appDelGiorno(S.calSel);
+  const anima = S.animaGiorno;
+  S.animaGiorno = false;
   const titoloMese = primo.toLocaleDateString('it-IT', { month: 'long' }) + (primo.getFullYear() !== new Date().getFullYear() ? ' ' + primo.getFullYear() : '');
 
   $('#main').innerHTML = `<div class="view">
@@ -1173,14 +1334,12 @@ function renderCalendario() {
         <button class="btn btn-secondary btn-icon" data-act="mese" data-k="1" aria-label="Mese successivo">${icon('right')}</button>
       </div>
     </div>
-    <div class="blueprint" style="border:0">${CORNERS}
-      <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--color-divider);border-left:1px solid var(--color-divider)">
-        ${dow.map(w => `<div style="height:28px;display:grid;place-items:center;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-600);border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider)">${esc(w)}</div>`).join('')}
-        ${celle}
-      </div>
+    <div class="glass cal${anima ? ' entra-giorno' : ''}">
+      ${dow.map(w => `<div class="cal-dow">${esc(w)}</div>`).join('')}
+      ${celle}
     </div>
     <div class="sezione">
-      <h2><span>${esc(etichettaGiorno(S.calSel))}</span>${S.mese !== oggi.slice(0, 8) + '01' || S.calSel !== oggi ? '<button class="btn btn-secondary" data-act="calOggi" style="padding:2px 8px;font-size:12px;min-height:0">Oggi</button>' : ''}</h2>
+      <h2><span>${esc(etichettaGiorno(S.calSel))}</span>${S.mese !== oggi.slice(0, 8) + '01' || S.calSel !== oggi ? '<button class="btn btn-secondary chip-oggi" data-act="calOggi">Oggi</button>' : ''}</h2>
       ${items.length
         ? `<div style="display:flex;flex-direction:column;gap:16px">${items.map(voceApp).join('')}</div>
            <button class="btn btn-ghost" data-act="apriGiorno" data-d="${S.calSel}" style="align-self:flex-start">Apri nell’agenda ${icon('right', 16)}</button>`
@@ -1195,9 +1354,8 @@ function renderCerca() {
     const chip = (f, t) => `<button data-act="filtro" data-f="${f}" aria-pressed="${S.filtro === f}">${t}</button>`;
     $('#main').innerHTML = `<div class="view" data-vista="cerca">
       <div class="head"><div><div class="card-kicker">Appuntamenti e contatti</div><h1>Cerca</h1></div></div>
-      <div style="position:relative">
-        <span style="position:absolute;left:12px;top:12px;color:var(--color-neutral-600)">${icon('search')}</span>
-        <input id="qCerca" class="input" type="search" placeholder="Nome, motivo, luogo, azienda, note…" value="${esc(S.qCerca)}" style="padding-left:40px" autocomplete="off">
+      <div class="search">${icon('search')}
+        <input id="qCerca" class="input" type="search" placeholder="Nome, motivo, luogo, azienda, note…" value="${esc(S.qCerca)}" autocomplete="off">
       </div>
       <div class="seg">${chip('da-fare', 'Da fare')}${chip('passati', 'Passati')}${chip('tutti', 'Tutti')}</div>
       <div id="risultati" style="display:flex;flex-direction:column;gap:16px"></div>
@@ -1221,7 +1379,7 @@ function risultatiCerca() {
   const contatti = q ? contattiOrdinati().filter(c => norm(`${c.nome || ''} ${c.telefono || ''} ${c.email || ''} ${c.note || ''}`).includes(q)) : [];
   let html = '';
   if (contatti.length) {
-    html += `<div class="sezione"><h2>Contatti · ${contatti.length}</h2><div>${contatti.slice(0, 5).map(rigaContatto).join('')}</div></div>`;
+    html += `<div class="sezione"><h2>Contatti · ${contatti.length}</h2><div class="lista-righe">${contatti.slice(0, 5).map(rigaContatto).join('')}</div></div>`;
   }
   if (lista.length) {
     let g = null;
@@ -1232,7 +1390,7 @@ function risultatiCerca() {
     }).join('');
   }
   if (!html) {
-    html = `<div class="blueprint vuoto">${CORNERS}<div class="card-title">Nessun risultato</div><div class="muted">${q ? 'Prova con un’altra parola.' : 'Non ci sono appuntamenti in questa vista.'}</div></div>`;
+    html = `<div class="glass vuoto"><span class="ico">${icon('search', 26)}</span><div class="card-title">Nessun risultato</div><div class="muted">${q ? 'Prova con un’altra parola.' : 'Non ci sono appuntamenti in questa vista.'}</div></div>`;
   }
   box.innerHTML = html;
 }
@@ -1241,7 +1399,7 @@ function risultatiCerca() {
 function rigaContatto(c) {
   const n = Object.values(S.appuntamenti).filter(a => a.contattoId === c.id).length;
   return `<div class="riga cliccabile" data-act="apriContatto" data-id="${esc(c.id)}" role="button" tabindex="0">
-    <div class="avatar" aria-hidden="true">${esc(iniziali(c.nome))}</div>
+    <div class="avatar" data-t="${tintaAvatar(c.nome)}" aria-hidden="true">${esc(iniziali(c.nome))}</div>
     <div class="testo">
       <div class="card-title">${esc(c.nome)}</div>
       <div class="card-meta" style="flex-wrap:wrap">${[c.telefono, c.email].filter(Boolean).map(esc).join(' · ')}</div>
@@ -1257,7 +1415,7 @@ function renderContatti() {
         <div><div class="card-kicker" id="nContatti"></div><h1>Contatti</h1></div>
         <button class="btn btn-secondary" data-act="nuovoContatto">${icon('plus', 16)} Contatto</button>
       </div>
-      <input id="q" class="input" type="search" placeholder="Cerca per nome, telefono o email" value="${esc(S.q)}" autocomplete="off">
+      <div class="search">${icon('search')}<input id="q" class="input" type="search" placeholder="Cerca per nome, telefono o email" value="${esc(S.q)}" autocomplete="off"></div>
       <div id="lista"></div>
     </div>`;
   }
@@ -1272,13 +1430,13 @@ function listaContatti() {
   const q = norm(S.q);
   const lista = tutti.filter(c => !q || norm(`${c.nome || ''} ${c.telefono || ''} ${c.email || ''}`).includes(q));
   if (!lista.length) {
-    box.innerHTML = `<div class="blueprint vuoto">${CORNERS}${icon('users', 28)}<div class="card-title">Nessun contatto</div><div class="muted">${q ? 'Nessun contatto corrisponde alla ricerca.' : 'Aggiungi il primo contatto con il pulsante in alto.'}</div></div>`;
+    box.innerHTML = `<div class="glass vuoto"><span class="ico">${icon('users', 26)}</span><div class="card-title">Nessun contatto</div><div class="muted">${q ? 'Nessun contatto corrisponde alla ricerca.' : 'Aggiungi il primo contatto con il pulsante in alto.'}</div></div>`;
     return;
   }
   let lettera = null;
   box.innerHTML = lista.map(c => {
     const l = (c.nome || '?').charAt(0).toUpperCase();
-    const pre = !q && l !== lettera ? `<div class="giorno-label" style="padding-top:14px;padding-bottom:4px">${esc(l)}</div>` : '';
+    const pre = !q && l !== lettera ? `<div class="giorno-label">${esc(l)}</div>` : '';
     lettera = l;
     return pre + rigaContatto(c);
   }).join('');
@@ -1291,7 +1449,7 @@ document.addEventListener('input', e => {
 
 // ----- Impostazioni -----
 function renderImpostazioni() {
-  const tema = lsGet('tema') || 'auto';
+  const tema = lsGet('tema') || 'scuro';
   const segTema = (v, t) => `<button type="button" data-act="tema" data-t="${v}" aria-pressed="${tema === v}">${t}</button>`;
   const permesso = notificheSupportate() ? Notification.permission : 'non disponibile';
   const nProm = prossimiPromemoria(1).length;
@@ -1300,15 +1458,15 @@ function renderImpostazioni() {
 
     <div class="sezione">
       <h2>Agenda</h2>
-      <div>
+      <div class="lista-righe">
         <div class="riga cliccabile" data-act="promemoria" role="button" tabindex="0">
-          <span style="color:var(--color-accent-700)">${icon('bell', 20)}</span>
+          <span class="ico">${icon('bell', 20)}</span>
           <div class="testo"><div class="card-title">Promemoria e notifiche</div>
             <div class="card-meta">${permesso === 'granted' ? 'Notifiche attive' : permesso === 'denied' ? 'Notifiche bloccate' : 'Notifiche non attive'} · ${esc(etichettaPromemoria(promemoriaPredefinito()))}${nProm ? ' · ' + plurale(nProm, 'nelle prossime 24 ore', 'nelle prossime 24 ore') : ''}</div></div>
           ${icon('right')}
         </div>
         <div class="riga cliccabile" data-act="ics" role="button" tabindex="0">
-          <span style="color:var(--color-accent-700)">${icon('download', 20)}</span>
+          <span class="ico">${icon('download', 20)}</span>
           <div class="testo"><div class="card-title">Esporta per Google Calendar</div>
             <div class="card-meta">File .ics da importare in Google Calendar o in un altro calendario</div></div>
         </div>
@@ -1317,13 +1475,13 @@ function renderImpostazioni() {
 
     <div class="sezione">
       <h2>Aspetto</h2>
-      <div class="seg">${segTema('auto', 'Automatico')}${segTema('chiaro', 'Chiaro')}${segTema('scuro', 'Scuro')}</div>
+      <div class="seg">${segTema('scuro', 'Scuro')}${segTema('chiaro', 'Chiaro')}${segTema('auto', 'Automatico')}</div>
     </div>
 
     <form id="fi" class="sezione">
       <h2>Gmail e conferme</h2>
-      <div class="riga">
-        <span style="color:var(--color-accent-700)">${icon('mail', 20)}</span>
+      <div class="riga glass">
+        <span class="ico">${icon('mail', 20)}</span>
         <div class="testo"><div class="card-title">Gmail</div><div class="card-meta">${gmailOk() ? 'Collegato per questa sessione' : 'Non collegato'}</div></div>
         ${GOOGLE_CLIENT_ID && !gmailOk() ? '<button type="button" class="btn btn-secondary" data-act="gmail">Collega</button>' : ''}
       </div>
@@ -1378,8 +1536,8 @@ function openPromemoria() {
         <select class="input" id="promDef">${SCELTE_PROMEMORIA.map(([v, t]) => `<option value="${v}" ${v === def ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       <div class="sezione">
         <h2>Prossimi 7 giorni · ${lista.length}</h2>
-        ${lista.length ? `<div>${lista.map(a => `<div class="riga cliccabile" data-act="apri" data-id="${esc(a.id)}" role="button" tabindex="0">
-            <span style="color:var(--color-accent-700)">${icon('bell', 18)}</span>
+        ${lista.length ? `<div class="lista-righe">${lista.map(a => `<div class="riga cliccabile" data-act="apri" data-id="${esc(a.id)}" role="button" tabindex="0">
+            <span class="ico">${icon('bell', 18)}</span>
             <div class="testo"><div class="card-title" style="font-size:15px">${esc(titoloApp(a, a.contatto))}</div>
               <div class="card-meta">Avviso ${esc(new Date(a.quando).toLocaleString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))} · ${esc(etichettaPromemoria(promemoriaDi(a)))}</div></div>
           </div>`).join('')}</div>` : '<p class="muted" style="margin:0">Nessun promemoria in programma.</p>'}
@@ -1430,14 +1588,14 @@ function openAppForm(opt = {}) {
     <form id="fa" novalidate>
       <div class="page-body">
         ${aid ? '' : `<details class="blueprint" style="padding:12px 14px" ${opt.smart ? 'open' : ''}>${CORNERS}
-          <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--color-accent-700);font-family:var(--font-heading);font-weight:600;list-style:none">${icon('spark', 18)} Compila da un messaggio</summary>
+          <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--accent-text);font-weight:700;list-style:none">${icon('spark', 18)} Compila da un messaggio</summary>
           <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
             <textarea id="smartTxt" class="input" rows="3" maxlength="1500" placeholder="Incolla un messaggio, es. «Vorrei venire in showroom giovedì alle 15 per i sanitari»"></textarea>
             <button type="button" class="btn btn-secondary" id="btnSmart" style="align-self:flex-start">${icon('spark', 16)} Compila con IA</button>
           </div>
         </details>`}
 
-        <label class="field"><span>Motivo</span><input class="input" name="motivo" maxlength="200" value="${esc(v.motivo)}" placeholder="Es. sopralluogo, scelta sanitari" style="font-family:var(--font-heading);font-weight:600;font-size:20px"></label>
+        <label class="field"><span>Motivo</span><input class="input" name="motivo" maxlength="200" value="${esc(v.motivo)}" placeholder="Es. sopralluogo, scelta sanitari" style="font-weight:700;font-size:19px"></label>
 
         <div class="row3">
           <label class="field"><span>Data</span><input class="input" name="data" type="date" required value="${esc(v.data)}"></label>
@@ -1626,9 +1784,9 @@ function etichettaVoce(v) {
 function azioniContatto(c, appId = '', cid = '') {
   const wa = c.telefono ? linkWhatsApp(c.telefono) : '#';
   return `<div class="azioni-contatto">
-    <a href="${c.telefono ? 'tel:' + esc(c.telefono) : '#'}" aria-disabled="${!c.telefono}">${icon('phone', 20)}Chiama</a>
-    <a href="${esc(wa)}" target="_blank" rel="noopener" aria-disabled="${!c.telefono}">${icon('chat', 20)}WhatsApp</a>
-    <button type="button" data-act="email" data-app-id="${esc(appId)}" data-contatto-id="${esc(cid)}" aria-disabled="${!c.email}">${icon('mail', 20)}Email</button>
+    <a class="az-tel" href="${c.telefono ? 'tel:' + esc(c.telefono) : '#'}" aria-disabled="${!c.telefono}">${icon('phone', 20)}Chiama</a>
+    <a class="az-wa" href="${esc(wa)}" target="_blank" rel="noopener" aria-disabled="${!c.telefono}">${icon('chat', 20)}WhatsApp</a>
+    <button type="button" class="az-mail" data-act="email" data-app-id="${esc(appId)}" data-contatto-id="${esc(cid)}" aria-disabled="${!c.email}">${icon('mail', 20)}Email</button>
   </div>`;
 }
 
@@ -1661,19 +1819,17 @@ function openDettaglio(aid) {
         <h1 style="font-size:34px;overflow-wrap:anywhere;text-decoration:${a.stato === 'annullato' ? 'line-through' : 'none'}">${esc(a.motivo || c.nome || 'Appuntamento')}</h1>
       </div>
 
-      <div class="blueprint" style="border:0">${CORNERS}
-        <div class="griglia" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)">
-          <div><div class="cella-k">Data</div><div class="cella-v" style="text-transform:capitalize">${esc(fmt(a.data, { weekday: 'short', day: 'numeric', month: 'short' }))}</div></div>
-          <div><div class="cella-k">Ora</div><div class="cella-v">${esc(a.ora)}</div></div>
-          <div><div class="cella-k">Fine</div><div class="cella-v">${esc(fineApp(a))}</div></div>
-        </div>
+      <div class="griglia" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)">
+        <div><div class="cella-k">Data</div><div class="cella-v" style="text-transform:capitalize">${esc(fmt(a.data, { weekday: 'short', day: 'numeric', month: 'short' }))}</div></div>
+        <div><div class="cella-k">Ora</div><div class="cella-v">${esc(a.ora)}</div></div>
+        <div><div class="cella-k">Fine</div><div class="cella-v">${esc(fineApp(a))}</div></div>
       </div>
       ${conflitti.length ? `<div class="avviso">${icon('warn', 18)}<div><strong>Si sovrappone a:</strong><br>${conflitti.map(x => `<a href="#" data-act="apri" data-id="${esc(x.id)}" style="color:inherit">${esc(x.ora)}–${esc(fineApp(x))} · ${esc(x.motivo || x.contatto.nome || '')}</a>`).join('<br>')}</div></div>` : ''}
 
       <div class="sezione">
         <h2>Contatto</h2>
-        <div class="riga cliccabile" data-act="apriContatto" data-id="${esc(a.contattoId)}" role="button" tabindex="0" style="border-top:1px solid var(--color-divider)">
-          <div class="avatar" aria-hidden="true">${esc(iniziali(c.nome))}</div>
+        <div class="riga cliccabile" data-act="apriContatto" data-id="${esc(a.contattoId)}" role="button" tabindex="0" style="background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--r-lg);box-shadow:var(--shadow-card)">
+          <div class="avatar" data-t="${tintaAvatar(c.nome)}" aria-hidden="true">${esc(iniziali(c.nome))}</div>
           <div class="testo"><div class="card-title">${esc(c.nome || '(contatto eliminato)')}</div>
             <div class="card-meta" style="flex-wrap:wrap">${[c.telefono, c.email].filter(Boolean).map(esc).join(' · ')}</div></div>
           ${icon('right')}
@@ -1683,19 +1839,19 @@ function openDettaglio(aid) {
 
       ${a.luogo ? `<div class="sezione"><h2>Luogo</h2>
         <a class="blueprint" href="${esc(linkMappa(a.luogo))}" target="_blank" rel="noopener" style="padding:12px 14px;display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--color-text)">${CORNERS}
-          <span style="color:var(--color-accent-700)">${icon('pin', 22)}</span>
+          <span class="ico">${icon('pin', 22)}</span>
           <span style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(a.luogo)}</span>
           <span class="card-kicker" style="display:flex;gap:4px;align-items:center">Maps ${icon('ext', 14)}</span>
         </a></div>` : ''}
 
       <div class="sezione">
         <h2>Promemoria e calendario</h2>
-        <div>
-          <div class="riga"><span style="color:var(--color-accent-700)">${icon('bell', 20)}</span>
+        <div class="lista-righe">
+          <div class="riga"><span class="ico">${icon('bell', 20)}</span>
             <div class="testo"><div>${esc(etichettaPromemoria(promemoriaDi(a)))}</div></div>
             <button class="btn btn-ghost" data-act="modificaApp" data-id="${esc(aid)}">Cambia</button></div>
           <a class="riga cliccabile" href="${esc(linkGoogleCalendar(a, c))}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
-            <span style="color:var(--color-accent-700)">${icon('cal', 20)}</span>
+            <span class="ico">${icon('cal', 20)}</span>
             <div class="testo"><div>Aggiungi a Google Calendar</div></div>${icon('ext', 16)}</a>
         </div>
       </div>
@@ -1735,16 +1891,14 @@ function openContatto(cid) {
     box.innerHTML = barra('Contatto', `<button class="btn btn-ghost btn-icon" data-act="modificaContatto" data-id="${esc(cid)}" aria-label="Modifica">${icon('edit', 18)}</button>`) + `
     <div class="page-body">
       <div style="display:flex;gap:14px;align-items:center">
-        <div class="avatar" style="width:64px;height:64px;font-size:24px" aria-hidden="true">${esc(iniziali(c.nome))}</div>
+        <div class="avatar" data-t="${tintaAvatar(c.nome)}" style="width:68px;height:68px;font-size:24px" aria-hidden="true">${esc(iniziali(c.nome))}</div>
         <div style="min-width:0"><div class="card-kicker" style="font-size:11px">${plurale(apps.length, 'appuntamento', 'appuntamenti')}</div>
           <h1 style="font-size:32px;overflow-wrap:anywhere">${esc(c.nome)}</h1></div>
       </div>
       ${azioniContatto(c, '', cid)}
-      <div class="blueprint" style="border:0">${CORNERS}
-        <div class="griglia" style="grid-template-columns:minmax(0,1fr)">
-          <div><div class="cella-k">Telefono</div><div style="font-size:16px">${c.telefono ? `<a href="tel:${esc(c.telefono)}">${esc(c.telefono)}</a>` : '—'}</div></div>
-          <div><div class="cella-k">Email</div><div style="font-size:16px;overflow-wrap:anywhere">${c.email ? esc(c.email) : '—'}</div></div>
-        </div>
+      <div class="griglia verticale">
+        <div><div class="cella-k">Telefono</div><div style="font-size:16px">${c.telefono ? `<a href="tel:${esc(c.telefono)}">${esc(c.telefono)}</a>` : '—'}</div></div>
+        <div><div class="cella-k">Email</div><div style="font-size:16px;overflow-wrap:anywhere">${c.email ? esc(c.email) : '—'}</div></div>
       </div>
       ${c.note ? `<div class="sezione"><h2>Note</h2><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(c.note)}</div></div>` : ''}
       <button class="btn btn-primary" data-act="apriAppContatto" data-id="${esc(cid)}" style="min-height:44px">${icon('plus', 16)} Nuovo appuntamento</button>
@@ -2007,10 +2161,15 @@ document.addEventListener('keydown', e => {
 });
 
 // ===================== AZIONI =====================
+// Cambio di sezione con dissolvenza: l'animazione parte solo qui, non a ogni aggiornamento dei dati.
 function vaiA(vista) {
   S.vista = vista;
-  $('#main').innerHTML = '';
+  const main = $('#main');
+  main.innerHTML = '';
+  main.classList.remove('entra');
   render();
+  void main.offsetWidth;
+  main.classList.add('entra');
   window.scrollTo(0, 0);
 }
 
@@ -2040,14 +2199,15 @@ const ACTIONS = {
   segnaConfermato: d => segnaConfermato(d.id, { messaggioId: d.msg, da: d.da, quando: d.quando }).then(() => aggiornaLivello()),
   // agenda
   modoAgenda: d => { S.modoAgenda = d.m; lsSet('modo_agenda', d.m); render(); },
-  giorno: d => { S.giorno = d.d; render(); },
-  settimana: d => { S.giorno = isoOf(addDays(isoToDate(S.giorno || todayISO()), Number(d.k))); render(); },
-  vaiOggi: () => { S.giorno = todayISO(); render(); },
+  giorno: d => { if (S.giorno !== d.d) S.animaGiorno = true; S.giorno = d.d; render(); },
+  settimana: d => { S.animaGiorno = true; S.giorno = isoOf(addDays(isoToDate(S.giorno || todayISO()), Number(d.k))); render(); },
+  vaiOggi: () => { S.animaGiorno = true; S.giorno = todayISO(); render(); },
   // calendario
   mese: d => {
     const p = isoToDate(S.mese);
     S.mese = isoOf(new Date(p.getFullYear(), p.getMonth() + Number(d.k), 1));
     S.calSel = S.mese.slice(0, 7) === todayISO().slice(0, 7) ? todayISO() : S.mese;
+    S.animaGiorno = true;
     render();
   },
   calGiorno: d => {
