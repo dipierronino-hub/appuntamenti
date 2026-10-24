@@ -486,7 +486,9 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.8.0';
+// Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
+const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
 const GOOGLE_CLIENT_ID = "215870183788-sahmel22cqnd110ff1lrsf8tch3s1lco.apps.googleusercontent.com";
 const GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly";
@@ -1342,8 +1344,8 @@ const SCELTE_PROMEMORIA = [[0, 'Nessuno'], [10, '10 minuti prima'], [30, '30 min
 const etichettaPromemoria = m => (SCELTE_PROMEMORIA.find(([v]) => v === m) || [m, `${m} minuti prima`])[1];
 
 function promemoriaPredefinito() {
-  const v = Number(lsGet('prom_default') ?? 30);
-  return Number.isInteger(v) && v >= 0 ? v : 30;
+  const v = Number(lsGet('prom_default') ?? 60);
+  return Number.isInteger(v) && v >= 0 ? v : 60;
 }
 const promemoriaDi = a => (Number.isInteger(a.promemoria) ? a.promemoria : promemoriaPredefinito());
 const istante = (data, ora) => isoToDate(data).getTime() + minuti(ora) * 60000;
@@ -1391,11 +1393,48 @@ function controllaPromemoria() {
 }
 
 async function attivaNotifiche() {
-  if (!notificheSupportate()) { toast('Notifiche non disponibili su questo browser'); return; }
+  if (!notificheSupportate()) { toast(suIphoneDaBrowser() ? 'Su iPhone aggiungi prima l’app alla schermata Home' : 'Notifiche non disponibili su questo browser'); return; }
   const esito = await Notification.requestPermission();
-  toast(esito === 'granted' ? 'Notifiche attivate' : 'Notifiche bloccate: abilitale dalle impostazioni del browser');
+  const push = esito === 'granted' && await iscriviPush();
+  toast(esito !== 'granted' ? 'Notifiche bloccate: abilitale dalle impostazioni del browser' : push ? 'Notifiche attivate, anche ad app chiusa' : 'Notifiche attivate (solo ad app aperta)');
   aggiornaLivello();
   render();
+}
+
+// ----- Notifiche push: arrivano anche ad app chiusa -----
+// L'app salva l'iscrizione del dispositivo in users/<uid>/push; ogni 5 minuti
+// scripts/push-promemoria.mjs (GitHub Actions) invia i promemoria arrivati all'ora giusta.
+const pushSupportato = () => notificheSupportate() && 'serviceWorker' in navigator && 'PushManager' in window;
+const suIphoneDaBrowser = () => /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone;
+const pushAttivo = () => Boolean(lsGet('push_id')) && notificheSupportate() && Notification.permission === 'granted';
+
+function chiaveVapid() {
+  const b = atob((VAPID_PUBLIC_KEY + '='.repeat((4 - VAPID_PUBLIC_KEY.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(b, ch => ch.charCodeAt(0));
+}
+
+// Iscrive questo dispositivo (o rinnova l'iscrizione) e la salva; restituisce true se le push sono attive.
+async function iscriviPush() {
+  if (!pushSupportato() || Notification.permission !== 'granted' || !S.user) return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveVapid() });
+    const j = sub.toJSON();
+    const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(j.endpoint)));
+    const id = btoa(String.fromCharCode(...hash.slice(0, 12))).replace(/\+/g, '-').replace(/\//g, '_');
+    const vecchio = lsGet('push_id');
+    if (vecchio && vecchio !== id) userRef('push/' + vecchio).remove().catch(() => {});
+    await userRef('push/' + id).set({ endpoint: j.endpoint, keys: j.keys, dispositivo: navigator.userAgent.slice(0, 160), aggiornato: Date.now() });
+    lsSet('push_id', id);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function provaPush() {
+  if (!(await iscriviPush())) { toast('Notifiche push non disponibili su questo dispositivo'); return; }
+  await esegui(userRef('pushProva').set(Date.now()), 'Prova richiesta: chiudi pure l’app, la notifica arriva entro qualche minuto');
 }
 
 // ===================== VISTE =====================
@@ -1941,8 +1980,17 @@ function openPromemoria() {
             <div class="card-meta">${permesso === 'granted' ? 'Attive su questo dispositivo' : permesso === 'denied' ? 'Bloccate: riattivale dalle impostazioni del browser' : permesso === 'default' ? 'Non ancora attivate' : 'Non disponibili su questo browser'}</div></div>
           ${permesso === 'default' ? '<button class="btn btn-primary" data-act="attivaNotifiche">Attiva</button>' : `<span class="tag ${permesso === 'granted' ? 'tag-accent' : 'tag-neutral'}">${permesso === 'granted' ? 'Attive' : 'Off'}</span>`}
         </div>
-        ${permesso === 'granted' ? '<button class="btn btn-secondary" data-act="provaNotifica" style="align-self:flex-start">Invia una notifica di prova</button>' : ''}
-        <p class="muted" style="margin:0">Gli avvisi arrivano mentre l’app è aperta o ancora attiva in background. Installala sulla schermata Home per riceverli in modo più affidabile.</p>
+        ${permesso === 'granted' ? `<div class="riga glass" style="padding:10px 12px">
+          <span class="ico">${icon('bell', 18)}</span>
+          <div class="testo"><div class="card-title" style="font-size:15px">Notifiche push</div>
+            <div class="card-meta">${pushAttivo() ? 'Attive: arrivano anche ad app chiusa' : pushSupportato() ? 'Non ancora collegate a questo dispositivo' : 'Non disponibili qui: arrivano solo ad app aperta'}</div></div>
+          ${pushSupportato() && !pushAttivo() ? '<button class="btn btn-primary" data-act="attivaPush">Collega</button>' : ''}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary" data-act="provaNotifica">Prova subito</button>
+          ${pushAttivo() ? '<button class="btn btn-secondary" data-act="provaPush">Prova ad app chiusa</button>' : ''}
+        </div>` : ''}
+        ${suIphoneDaBrowser() ? '<p class="muted" style="margin:0"><b>Su iPhone:</b> tocca Condividi, poi “Aggiungi alla schermata Home”. Apri l’app dall’icona sulla Home e premi Attiva: solo così le notifiche arrivano ad app chiusa.</p>' : '<p class="muted" style="margin:0">Con le notifiche push l’avviso arriva all’ora del promemoria anche ad app chiusa (con qualche minuto di margine).</p>'}
       </div>
       <label class="field"><span>Promemoria predefinito per i nuovi appuntamenti</span>
         <select class="input" id="promDef">${SCELTE_PROMEMORIA.map(([v, t]) => `<option value="${v}" ${v === def ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
@@ -2986,6 +3034,8 @@ const ACTIONS = {
   tema: d => { lsSet('tema', d.t); applicaTema(d.t); render(); },
   promemoria: () => openPromemoria(),
   attivaNotifiche: () => attivaNotifiche(),
+  attivaPush: async () => { toast(await iscriviPush() ? 'Notifiche push collegate' : 'Collegamento non riuscito, riprova'); aggiornaLivello(); render(); },
+  provaPush: () => provaPush(),
   provaNotifica: () => mostraNotifica({ id: 'prova', ora: oraAdesso(), data: todayISO(), motivo: 'Notifica di prova', contatto: {} }),
   ics: () => esportaIcs()
 };
@@ -3095,6 +3145,8 @@ function voiceStart(btn = $('#mic'), suTesto = null) {
 // Dopo il primo caricamento dei dati: promemoria e apertura da notifica (?app=ID).
 function datiPronti() {
   controllaPromemoria();
+  // Rinnova in silenzio l'iscrizione push (il telefono a volte la cambia).
+  iscriviPush();
   const id = new URLSearchParams(location.search).get('app');
   if (id && S.appuntamenti[id]) {
     history.replaceState(null, '', location.pathname);
