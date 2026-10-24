@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.9.1';
+const APP_VERSION = '2.10.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -2014,17 +2014,153 @@ function openPromemoria() {
 }
 
 // ===================== RUBRICA DEL TELEFONO E SUGGERIMENTI =====================
-// Chrome per Android apre la rubrica di sistema: l'utente sceglie, l'app riceve solo quel contatto.
+// Tre strade, perché nessuna funziona su tutti i telefoni:
+// 1) Chrome per Android apre la rubrica di sistema (Contact Picker);
+// 2) un file contatto .vcf scelto dal telefono (Android lo prende anche dall'app Contatti, iPhone da File);
+// 3) un contatto condiviso dalla rubrica verso l'app (Android, app installata) o copiato e incollato.
 const rubricaDisponibile = () => 'contacts' in navigator && 'ContactsManager' in window;
+
+// Decodifica "quoted-printable" (Android esporta così i nomi con lettere accentate).
+function decodificaQP(t) {
+  const byte = [];
+  const s = t.replace(/=\r?\n/g, '');
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '=' && /^[0-9A-F]{2}$/i.test(s.slice(i + 1, i + 3))) { byte.push(parseInt(s.slice(i + 1, i + 3), 16)); i += 2; }
+    else byte.push(...new TextEncoder().encode(s[i]));
+  }
+  try { return new TextDecoder('utf-8').decode(new Uint8Array(byte)); } catch (e) { return s; }
+}
+
+// Legge uno o più contatti da un testo vCard; restituisce [{ nome, telefono, email, azienda }].
+function leggiVCard(testo) {
+  const contatti = [];
+  const righe = String(testo || '').replace(/\r\n[ \t]/g, '').replace(/\n[ \t]/g, '')
+    .replace(/=\r?\n/g, '=\n').split(/\r?\n/);
+  let c = null, fn = '', n = '';
+  // Le righe quoted-printable possono continuare con "=" a fine riga: si uniscono.
+  for (let i = 0; i < righe.length; i++) {
+    let r = righe[i];
+    while (/QUOTED-PRINTABLE/i.test(r.split(':')[0]) && r.endsWith('=') && i + 1 < righe.length) r = r.slice(0, -1) + righe[++i];
+    const due = r.indexOf(':');
+    if (due < 0) continue;
+    const testa = r.slice(0, due).toUpperCase(), corpo = r.slice(due + 1);
+    const chiave = testa.split(';')[0].replace(/^ITEM\d+\./, '');
+    const valore = /QUOTED-PRINTABLE/.test(testa) ? decodificaQP(corpo) : corpo;
+    const pulito = v => v.replace(/\\,/g, ',').replace(/\;/g, ';').replace(/\\n/gi, ' ').trim();
+    if (chiave === 'BEGIN') { c = { nome: '', telefono: '', email: '', azienda: '', tel: [] }; fn = ''; n = ''; }
+    else if (!c) continue;
+    else if (chiave === 'END') {
+      // Cognome e nome, come nell'app; se manca N si usa il nome completo.
+      c.nome = n || fn;
+      // Si preferisce il cellulare.
+      c.telefono = (c.tel.find(t => t.cell) || c.tel[0] || {}).num || '';
+      delete c.tel;
+      if (c.nome || c.telefono || c.email) contatti.push(c);
+      c = null;
+    }
+    else if (chiave === 'FN') fn = pulito(valore);
+    else if (chiave === 'N') {
+      const parti = valore.split(';').map(pulito);
+      n = [parti[0], parti[1]].filter(Boolean).join(' ');
+    }
+    else if (chiave === 'TEL') c.tel.push({ num: pulito(valore).replace(/^tel:/i, ''), cell: /CELL|MOBILE/.test(testa) });
+    else if (chiave === 'EMAIL' && !c.email) c.email = pulito(valore);
+    else if (chiave === 'ORG' && !c.azienda) c.azienda = pulito(valore.split(';')[0]);
+  }
+  return contatti;
+}
+
+// Contatto da testo libero (es. "Condividi come testo" o copia e incolla): righe con nome, numero, email.
+function leggiTestoContatto(testo) {
+  const t = String(testo || '');
+  if (/BEGIN:VCARD/i.test(t)) return leggiVCard(t)[0] || null;
+  const righe = t.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+  const email = (t.match(/[^\s@<>()]+@[^\s@<>()]+\.[a-z]{2,}/i) || [''])[0];
+  const tel = (t.match(/(?:\+|00)?\d[\d\s.\-()/]{5,}\d/) || [''])[0].trim();
+  // Prima riga senza numero né email; se non c'è, la prima riga ripulita da numero ed email.
+  const nome = righe.find(r => !r.includes('@') && !/\d{4,}/.test(r.replace(/\D/g, '')) && /[a-zà-ú]/i.test(r)) ||
+    (righe[0] || '').replace(email, '').replace(tel, '').replace(/[\s:,;\-–]+$/, '').trim();
+  if (!nome && !tel && !email) return null;
+  return { nome: nome.replace(/^(nome|name)\s*:\s*/i, '').slice(0, 120), telefono: tel, email, azienda: '' };
+}
 
 function campoNome(valore) {
   return `<div class="field"><label for="campoNome" style="font-size:12px;font-weight:600;color:var(--color-muted)">Cognome e nome</label>
     <div style="display:flex;gap:8px">
       <input class="input" id="campoNome" name="nome" required maxlength="120" value="${esc(valore)}" autocomplete="off" list="suggContatti" placeholder="Es. Rossi Mario">
-      ${rubricaDisponibile() ? `<button type="button" class="btn btn-secondary" data-rubrica style="flex:none;min-height:46px" aria-label="Scegli dalla rubrica del telefono">${icon('book', 18)} Rubrica</button>` : ''}
+      <button type="button" class="btn btn-secondary" data-rubrica style="flex:none;min-height:46px" aria-label="Prendi un contatto dalla rubrica del telefono">${icon('book', 18)} Rubrica</button>
     </div>
     <datalist id="suggContatti">${contattiOrdinati().map(k => `<option value="${esc(k.nome)}">${esc([k.telefono, k.email].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>
   </div>`;
+}
+
+// Cerca tra i contatti dell'app lo stesso numero o lo stesso nome.
+function contattoGiaPresente(k) {
+  return contattiOrdinati().find(c => (k.telefono && normTel(c.telefono) && normTel(c.telefono) === normTel(k.telefono)) || (k.nome && norm(c.nome) === norm(k.nome)));
+}
+
+// Foglio con le alternative alla rubrica di sistema; usa(k) riceve il contatto letto.
+function sceltaRubrica(usa, motivo = '') {
+  const android = /android/i.test(navigator.userAgent);
+  openModal(`
+    <h2>Prendi un contatto</h2>
+    ${motivo ? `<p class="muted" style="margin:0">${esc(motivo)}</p>` : ''}
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${rubricaDisponibile() ? `<button type="button" class="btn btn-secondary" data-r="picker">${icon('book', 18)} Apri la rubrica</button>` : ''}
+      <label class="btn btn-primary" style="cursor:pointer">${icon('book', 18)} Scegli file contatto (.vcf)
+        <input type="file" accept=".vcf,.vcard,text/vcard,text/x-vcard,text/directory" hidden data-r="file">
+      </label>
+      <p class="muted" style="margin:0;font-size:13px">${android
+        ? 'Si apre la scelta file: tocca il menu ☰ e scegli <b>Contatti</b>, poi il contatto. Oppure dalla Rubrica: apri il contatto › <b>Condividi</b> › <b>Appuntamenti</b>.'
+        : 'iPhone: in Contatti apri il contatto › <b>Condividi contatto</b> › <b>Salva su File</b>. Poi qui tocca il pulsante sopra e scegli il file.'}</p>
+      <label class="field"><span>Oppure incolla qui il contatto copiato</span>
+        <textarea class="input" data-r="testo" rows="3" placeholder="Nome, numero, email"></textarea></label>
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" data-act="chiudi">Annulla</button>
+        <button type="button" class="btn btn-primary" data-r="usa">Usa testo</button>
+      </div>
+    </div>`, m => {
+    const fatto = k => { closeModal(); usa(k); };
+    m.querySelector('[data-r="picker"]')?.addEventListener('click', async () => {
+      const k = await apriPicker();
+      if (k) fatto(k); else toast('Nessun contatto ricevuto: prova con il file .vcf');
+    });
+    m.querySelector('[data-r="file"]').addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const lista = leggiVCard(await file.text());
+      if (!lista.length) { toast('Nel file non trovo nessun contatto valido'); return; }
+      if (lista.length > 1) toast('Nel file ci sono ' + lista.length + ' contatti: uso il primo');
+      fatto(lista[0]);
+    });
+    m.querySelector('[data-r="usa"]').addEventListener('click', () => {
+      const k = leggiTestoContatto(m.querySelector('[data-r="testo"]').value);
+      if (k) fatto(k); else toast('Nel testo non trovo nome, numero o email');
+    });
+  });
+}
+
+// Contact Picker di Chrome per Android; restituisce il contatto o null.
+async function apriPicker() {
+  try {
+    // Si chiedono solo i campi che questo telefono supporta, altrimenti Chrome rifiuta la richiesta.
+    let campi = ['name', 'tel', 'email'];
+    try {
+      const supportati = await navigator.contacts.getProperties();
+      if (Array.isArray(supportati) && supportati.length) campi = campi.filter(c => supportati.includes(c));
+    } catch (e) { /* si usano i campi predefiniti */ }
+    const risultato = await navigator.contacts.select(campi, { multiple: false });
+    const scelto = Array.isArray(risultato) ? risultato[0] : null;
+    if (!scelto) return null;
+    const k = {
+      nome: (scelto.name || []).find(Boolean) || '',
+      telefono: (scelto.tel || []).find(Boolean) || '',
+      email: (scelto.email || []).find(Boolean) || ''
+    };
+    return k.nome || k.telefono || k.email ? k : null;
+  } catch (err) {
+    return null;
+  }
 }
 
 // Collega al modulo: suggerimenti dai contatti salvati e pulsante Rubrica.
@@ -2039,40 +2175,40 @@ function collegaNome(f, suContatto) {
     if (k.telefono && !f.telefono.value) f.telefono.value = k.telefono;
     if (k.email && !f.email.value) f.email.value = k.email;
   });
+  const riempi = k => {
+    const giaPresente = contattoGiaPresente(k);
+    if (giaPresente && suContatto) suContatto(giaPresente.id);
+    if (k.nome) f.nome.value = k.nome;
+    if (k.telefono) f.telefono.value = normTel(k.telefono) || k.telefono;
+    if (k.email) f.email.value = k.email;
+    [f.nome, f.telefono, f.email].forEach(el => el.dispatchEvent(new Event('input', { bubbles: true })));
+    toast(giaPresente ? 'Contatto già presente: dati collegati' : 'Dati presi dalla rubrica');
+  };
   const btn = f.querySelector('[data-rubrica]');
   if (btn) btn.addEventListener('click', async () => {
-    try {
-      // Si chiedono solo i campi che questo telefono supporta, altrimenti Chrome rifiuta la richiesta.
-      let campi = ['name', 'tel', 'email'];
-      try {
-        const supportati = await navigator.contacts.getProperties();
-        if (Array.isArray(supportati) && supportati.length) campi = campi.filter(c => supportati.includes(c));
-      } catch (e) { /* si usano i campi predefiniti */ }
-      const risultato = await navigator.contacts.select(campi, { multiple: false });
-      const scelto = Array.isArray(risultato) ? risultato[0] : null;
-      if (!scelto) {
-        toast('Nessun contatto ricevuto: tocca il contatto e poi il pulsante di conferma in alto (Condividi / Fine)');
-        return;
-      }
-      const nome = (scelto.name || []).find(Boolean) || '';
-      const tel = (scelto.tel || []).find(Boolean) || '';
-      const email = (scelto.email || []).find(Boolean) || '';
-      // Se è già tra i contatti dell'app (stesso numero o stesso nome) si usa quello.
-      const giaPresente = contattiOrdinati().find(c => (tel && normTel(c.telefono) && normTel(c.telefono) === normTel(tel)) || (nome && norm(c.nome) === norm(nome)));
-      if (giaPresente && suContatto) suContatto(giaPresente.id);
-      if (!nome && !tel && !email) {
-        toast('Il contatto scelto non ha nome né numero leggibili');
-        return;
-      }
-      if (nome) f.nome.value = nome;
-      if (tel) f.telefono.value = normTel(tel) || tel;
-      if (email) f.email.value = email;
-      [f.nome, f.telefono, f.email].forEach(el => el.dispatchEvent(new Event('input', { bubbles: true })));
-      toast(giaPresente ? 'Contatto già presente: dati collegati' : 'Dati presi dalla rubrica');
-    } catch (err) {
-      toast('Rubrica non riuscita: ' + (err?.name || '') + ' ' + (err?.message || ''));
-    }
+    if (!rubricaDisponibile()) { sceltaRubrica(riempi); return; }
+    const k = await apriPicker();
+    // Se la rubrica non restituisce nulla si propongono subito le alternative.
+    if (k) riempi(k); else sceltaRubrica(riempi, 'La rubrica non ha passato il contatto. Usa una di queste strade:');
   });
+}
+
+// Contatto condiviso verso l'app dalla rubrica (Android): il service worker lo conserva e apre ./?condiviso=1.
+async function contattoCondiviso() {
+  if (!new URLSearchParams(location.search).has('condiviso')) return;
+  history.replaceState(null, '', location.pathname);
+  let k = null;
+  try {
+    const cache = await caches.open('condivisi');
+    const r = await cache.match('ultimo');
+    if (r) { k = leggiTestoContatto(await r.text()); await cache.delete('ultimo'); }
+  } catch (e) { /* niente da leggere */ }
+  if (!k) { toast('Non ho ricevuto nessun contatto dalla condivisione'); return; }
+  armaIndietro();
+  const giaPresente = contattoGiaPresente(k);
+  if (giaPresente) { toast('Contatto già presente: apro la sua scheda'); openContatto(giaPresente.id); return; }
+  openContattoForm({ nome: k.nome, telefono: normTel(k.telefono) || k.telefono, email: k.email });
+  toast('Dati presi dalla rubrica');
 }
 
 // ===================== SCHERMATE: APPUNTAMENTO =====================
@@ -2287,7 +2423,7 @@ function openAppForm(opt = {}) {
 
 function openContattoForm(opt = {}) {
   const id = opt.id || null;
-  const c = id ? (S.contatti[id] || {}) : {};
+  const c = id ? (S.contatti[id] || {}) : { nome: opt.nome, telefono: opt.telefono, email: opt.email };
   openModal(`
     <h2>${id ? 'Modifica contatto' : 'Nuovo contatto'}</h2>
     <form id="fc" style="display:flex;flex-direction:column;gap:12px">
@@ -3216,6 +3352,7 @@ function datiPronti() {
   controllaPromemoria();
   // Rinnova in silenzio l'iscrizione push (il telefono a volte la cambia).
   iscriviPush();
+  contattoCondiviso();
   const id = new URLSearchParams(location.search).get('app');
   if (id && S.appuntamenti[id]) {
     history.replaceState(null, '', location.pathname);
