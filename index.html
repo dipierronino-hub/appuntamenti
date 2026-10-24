@@ -389,6 +389,12 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 .filtri-tipo>button{flex:none;min-height:40px;padding:6px 14px;border-radius:999px;border:1px solid var(--glass-border);background:var(--input-bg);color:var(--color-muted);font:inherit;font-size:13px;font-weight:600;cursor:pointer;touch-action:manipulation}
 .filtri-tipo>button[aria-pressed="true"]{color:var(--color-text);border-color:var(--tt,var(--accent));background:color-mix(in srgb,var(--tt,var(--accent)) 20%,transparent)}
 .filtri-tipo>button small{opacity:.7;margin-left:4px}
+.mandanti{display:flex;flex-direction:column;gap:8px}
+.mandante{display:flex;gap:8px;align-items:center}
+.mandante>.input{flex:1;min-width:0}
+.mandante>button{flex:none;width:var(--tap);height:var(--tap)}
+.chips-mandanti{display:flex;flex-wrap:wrap;gap:6px}
+.chips-mandanti>span{--tt:var(--t-rap);font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;color:var(--color-text);background:color-mix(in srgb,var(--tt) 14%,transparent);border:1px solid color-mix(in srgb,var(--tt) 30%,transparent);overflow-wrap:anywhere}
 .seg-mov>button[data-m="uscita"][aria-pressed="true"]{background:linear-gradient(135deg,#ea580c,#fb7185);box-shadow:0 4px 16px rgba(249,115,22,.35)}
 .importo{font-weight:800;font-size:14px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .seg-pay>button[data-p="da-saldare"][aria-pressed="true"]{background:linear-gradient(135deg,#059669,#34d399);box-shadow:0 4px 16px rgba(16,185,129,.35)}
@@ -472,7 +478,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.5.0';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
 const GOOGLE_CLIENT_ID = "215870183788-sahmel22cqnd110ff1lrsf8tch3s1lco.apps.googleusercontent.com";
 const GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly";
@@ -897,6 +903,7 @@ function validaContatto(v) {
   const dati = { nome, telefono: tel, email };
   if ('note' in v) dati.note = String(v.note ?? '').trim();
   if ('tipo' in v) dati.tipo = tipoDi(v);
+  if ('mandanti' in v) dati.mandanti = dati.tipo === 'rappresentante' ? pulisciMandanti(v.mandanti) : [];
   return { ok: true, dati };
 }
 
@@ -1299,14 +1306,24 @@ const tagTipo = c => `<span class="tag tag-tipo" data-tipo="${tipoDi(c)}">${TIPI
 const sceltaTipo = tipo => `<input type="hidden" name="tipo" value="${esc(tipo)}">
   <div class="seg seg-tipo" role="group" aria-label="Tipo di contatto">${Object.entries(TIPI_CONTATTO).map(([k, [t]]) => `<button type="button" data-tipo="${k}" aria-pressed="${k === tipo}">${t}</button>`).join('')}</div>`;
 // Collega i pulsanti del selettore al campo nascosto "tipo" del modulo.
-function attivaTipo(f) {
+function attivaTipo(f, dopo) {
   const segna = t => {
     f.tipo.value = tipoDi({ tipo: t });
     f.querySelectorAll('.seg-tipo>button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tipo === f.tipo.value)));
+    if (dopo) dopo(f.tipo.value);
   };
   f.querySelector('.seg-tipo').addEventListener('click', e => { const b = e.target.closest('button'); if (b) segna(b.dataset.tipo); });
   return segna;
 }
+// Aziende (fornitori) che un rappresentante rappresenta: servono anche per l'abbinamento con Atlantis.
+const mandantiDi = c => (tipoDi(c) === 'rappresentante' && Array.isArray(c?.mandanti) ? c.mandanti.filter(Boolean) : []);
+function pulisciMandanti(lista) {
+  const visti = new Set();
+  return (Array.isArray(lista) ? lista : []).map(x => String(x ?? '').trim().slice(0, 120))
+    .filter(x => x && !visti.has(norm(x)) && visti.add(norm(x))).slice(0, 20);
+}
+const rigaMandante = (v = '') => `<div class="mandante"><input class="input" name="mandante" maxlength="120" placeholder="Nome azienda" value="${esc(v)}" autocomplete="off">
+  <button type="button" class="btn btn-ghost btn-icon" data-rimuovi aria-label="Togli azienda">${icon('close', 18)}</button></div>`;
 const euro = n => Number(n || 0).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
 const movimentoDi = a => (a.movimento === 'uscita' ? 'uscita' : 'entrata');
 const statoPag = a => (PAGAMENTI[a.pagamento] ? a.pagamento : 'da-saldare');
@@ -1603,7 +1620,7 @@ function risultatiCerca() {
   else if (S.filtro === 'incassi') lista = lista.filter(a => residuo(a) > 0).sort(byDt);
   else lista.sort(byDt);
   if (q) lista = lista.filter(a => norm(`${a.contatto.nome || ''} ${a.motivo || ''} ${a.luogo || ''} ${a.azienda || ''} ${a.note || ''} ${a.contatto.telefono || ''}`).includes(q));
-  const contatti = q ? contattiOrdinati().filter(c => norm(`${c.nome || ''} ${c.telefono || ''} ${c.email || ''} ${c.note || ''}`).includes(q)) : [];
+  const contatti = q ? contattiOrdinati().filter(c => norm(`${c.nome || ''} ${c.telefono || ''} ${c.email || ''} ${c.note || ''} ${mandantiDi(c).join(' ')}`).includes(q)) : [];
   let html = '';
   if (S.filtro === 'incassi' && lista.length) {
     const t = totaliAperti(lista);
@@ -1636,6 +1653,7 @@ function rigaContatto(c) {
     <div class="testo">
       <div class="card-title">${esc(c.nome)}</div>
       <div class="card-meta" style="flex-wrap:wrap">${tagTipo(c)}${[c.telefono, c.email].filter(Boolean).map(esc).join(' · ')}</div>
+      ${mandantiDi(c).length ? `<div class="card-meta" style="overflow-wrap:anywhere">${esc(mandantiDi(c).join(', '))}</div>` : ''}
     </div>
     ${c.telefono ? rapide(c) : `<span class="muted" style="font-size:12px;flex:none">${n ? plurale(n, 'app.', 'app.') : ''}</span>`}
   </div>`;
@@ -1648,7 +1666,7 @@ function renderContatti() {
         <div><div class="card-kicker" id="nContatti"></div><h1>Contatti</h1></div>
         <button class="btn btn-secondary" data-act="nuovoContatto">${icon('plus', 16)} Contatto</button>
       </div>
-      <div class="search">${icon('search')}<input id="q" class="input" type="search" placeholder="Cerca per nome, telefono o email" value="${esc(S.q)}" autocomplete="off"></div>
+      <div class="search">${icon('search')}<input id="q" class="input" type="search" placeholder="Nome, telefono, email, azienda" value="${esc(S.q)}" autocomplete="off"></div>
       <div class="filtri-tipo" id="filtriTipo" role="group" aria-label="Tipo di contatto"></div>
       <div id="lista"></div>
     </div>`;
@@ -1665,7 +1683,7 @@ function listaContatti() {
   $('#filtriTipo').innerHTML = [['', 'Tutti', tutti.length], ...Object.entries(TIPI_CONTATTO).map(([k, [, pl]]) => [k, pl, conta(k)])]
     .map(([k, t, n]) => `<button type="button" data-act="tipoC" data-f="${k}" ${k ? `data-tipo="${k}"` : ''} aria-pressed="${S.tipoC === k}">${t}<small>${n}</small></button>`).join('');
   const q = norm(S.q);
-  const lista = tutti.filter(c => (!S.tipoC || tipoDi(c) === S.tipoC) && (!q || norm(`${c.nome || ''} ${c.telefono || ''} ${c.email || ''}`).includes(q)));
+  const lista = tutti.filter(c => (!S.tipoC || tipoDi(c) === S.tipoC) && (!q || norm(`${c.nome || ''} ${c.telefono || ''} ${c.email || ''} ${mandantiDi(c).join(' ')}`).includes(q)));
   if (!lista.length) {
     box.innerHTML = `<div class="glass vuoto"><span class="ico">${icon('users', 26)}</span><div class="card-title">Nessun contatto</div><div class="muted">${q ? 'Nessun contatto corrisponde alla ricerca.' : S.tipoC ? `Nessun contatto di tipo ${TIPI_CONTATTO[S.tipoC][0].toLowerCase()}.` : 'Aggiungi il primo contatto con il pulsante in alto.'}</div></div>`;
     return;
@@ -2013,6 +2031,10 @@ function openContattoForm(opt = {}) {
     <form id="fc" style="display:flex;flex-direction:column;gap:12px">
       <label class="field"><span>Nome</span><input class="input" name="nome" required maxlength="120" value="${esc(c.nome)}"></label>
       <div class="field"><span>Tipo</span>${sceltaTipo(id ? tipoDi(c) : (opt.tipo || 'cliente'))}</div>
+      <div class="field" id="campoMandanti"><span>Aziende rappresentate</span>
+        <div class="mandanti" id="listaMandanti">${(c.mandanti?.length ? c.mandanti : ['']).map(rigaMandante).join('')}</div>
+        <button type="button" class="btn btn-ghost" id="addMandante" style="align-self:flex-start">${icon('plus', 16)} Aggiungi azienda</button>
+      </div>
       <div class="row2">
         <label class="field"><span>Telefono</span><input class="input" name="telefono" type="tel" value="${esc(c.telefono)}"></label>
         <label class="field"><span>Email</span><input class="input" name="email" type="email" value="${esc(c.email)}"></label>
@@ -2023,10 +2045,22 @@ function openContattoForm(opt = {}) {
         <button class="btn btn-primary">Salva</button>
       </div>
     </form>`, m => {
-    attivaTipo(m.querySelector('#fc'));
-    m.querySelector('#fc').addEventListener('submit', async e => {
+    const fc = m.querySelector('#fc');
+    const lista = m.querySelector('#listaMandanti');
+    attivaTipo(fc, t => { m.querySelector('#campoMandanti').hidden = t !== 'rappresentante'; })(fc.tipo.value);
+    m.querySelector('#addMandante').addEventListener('click', () => {
+      lista.insertAdjacentHTML('beforeend', rigaMandante());
+      lista.lastElementChild.querySelector('input').focus();
+    });
+    lista.addEventListener('click', e => {
+      if (!e.target.closest('[data-rimuovi]')) return;
+      const riga = e.target.closest('.mandante');
+      if (lista.children.length > 1) riga.remove(); else riga.querySelector('input').value = '';
+    });
+    fc.addEventListener('submit', async e => {
       e.preventDefault();
-      const esito = await salvaContatto(Object.fromEntries(new FormData(e.target)), id);
+      const fd = new FormData(e.target);
+      const esito = await salvaContatto({ ...Object.fromEntries(fd), mandanti: fd.getAll('mandante') }, id);
       if (esito !== 'errore') { closeModal(); aggiornaLivello(); }
     });
   });
@@ -2108,10 +2142,26 @@ function sezioneAtlantis(c) {
   const at = c.atlantis;
   if (!at || typeof at !== 'object') return '';
   const quando = at.aggiornato ? new Date(at.aggiornato).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  // Rappresentante: un riepilogo per ogni azienda rappresentata.
+  const mandanti = Array.isArray(at.mandanti) ? at.mandanti : [];
+  if (mandanti.length) {
+    return `<div class="sezione"><h2><span>Situazione Atlantis</span><span style="text-transform:none;letter-spacing:0;font-weight:600">${esc(quando)}</span></h2>
+      ${mandanti.map(x => `<div style="display:flex;flex-direction:column;gap:10px">
+        <div class="card-kicker" style="font-size:11px">${esc(x.azienda || x.ragione || '')}</div>${soggettoAtlantis(x)}</div>`).join('')}
+    </div>`;
+  }
   if (!at.codice) {
     return `<div class="sezione"><h2>Situazione Atlantis</h2>
       <p class="muted" style="margin:0">${esc(at.nota || 'Nessun soggetto trovato in Atlantis')}${quando ? ' · controllato il ' + esc(quando) : ''}</p></div>`;
   }
+  return `<div class="sezione"><h2><span>Situazione Atlantis</span><span style="text-transform:none;letter-spacing:0;font-weight:600">${esc(quando)}</span></h2>
+    ${soggettoAtlantis(at)}
+  </div>`;
+}
+
+// Riquadro di un soggetto Atlantis: ragione sociale, totali e prossime scadenze.
+function soggettoAtlantis(at) {
+  if (!at.codice) return `<p class="muted" style="margin:0">${esc(at.nota || 'Non trovato in Atlantis')}</p>`;
   const lato = (k, titolo, colore) => {
     const x = at[k];
     if (!x) return '';
@@ -2122,8 +2172,7 @@ function sezioneAtlantis(c) {
   };
   const celle = [lato('cliente', 'Ci deve', 'var(--in)'), lato('fornitore', 'Dobbiamo', 'var(--out)')].filter(Boolean);
   const prossime = Array.isArray(at.prossime) ? at.prossime.slice(0, 4) : [];
-  return `<div class="sezione"><h2><span>Situazione Atlantis</span><span style="text-transform:none;letter-spacing:0;font-weight:600">${esc(quando)}</span></h2>
-    <div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:2px">
+  return `<div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:2px">
       <div class="card-title" style="overflow-wrap:anywhere">${esc(at.ragione || '')}</div>
       <div class="card-meta">Codice ${esc(at.codice)}${at.nota ? ' · ' + esc(at.nota) : ''}</div>
     </div>
@@ -2132,8 +2181,7 @@ function sezioneAtlantis(c) {
         <div class="testo"><div style="font-weight:600">${esc(validDate(x.data) ? fmtCorta(x.data) : x.data || '')}${x.data && x.data < todayISO() ? ' <span class="tag tag-bad">scaduta</span>' : ''}</div>
           <div class="card-meta">${esc([x.ruolo === 'fornitore' ? 'Da pagare' : 'Da incassare', x.rif].filter(Boolean).join(' · '))}</div></div>
         <span class="importo" style="color:${x.ruolo === 'fornitore' ? 'var(--out)' : 'var(--in)'}">${esc(euro(x.importo))}</span>
-      </div>`).join('')}</div>` : ''}
-  </div>`;
+      </div>`).join('')}</div>` : ''}`;
 }
 
 function openDettaglio(aid) {
@@ -2254,6 +2302,7 @@ function openContatto(cid) {
           <h1 style="font-size:32px;overflow-wrap:anywhere">${esc(c.nome)}</h1></div>
       </div>
       ${azioniContatto(c, '', cid)}
+      ${mandantiDi(c).length ? `<div class="sezione"><h2>Aziende rappresentate · ${mandantiDi(c).length}</h2><div class="chips-mandanti">${mandantiDi(c).map(x => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
       ${sezioneAtlantis(c)}
       <div class="griglia verticale">
         <div><div class="cella-k">Telefono</div><div style="font-size:16px">${c.telefono ? `<a href="tel:${esc(c.telefono)}">${esc(c.telefono)}</a>` : '—'}</div></div>

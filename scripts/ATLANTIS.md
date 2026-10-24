@@ -13,6 +13,10 @@ Serve `FIREBASE_DB_SECRET` nell'ambiente e l'accesso di rete a
    - più risultati: preferisci quello con lo stesso telefono o email, poi quello con scadenze aperte;
      se resta ambiguo scegli il più probabile e metti `nota: "da verificare"`;
    - nessun risultato: scrivi solo `{ "nota": "Non trovato in Atlantis" }`.
+   - **rappresentante** (`tipo: "rappresentante"`): il rappresentante di solito non è in Atlantis.
+     Cerca invece ognuna delle `mandanti` (le aziende che rappresenta) tra i fornitori, riusando
+     `codiciMandanti[azienda]` se c'è, e scrivi un elemento per ciascuna in `atlantis.mandanti`
+     (vedi l'esempio sotto). Le regole su ambiguità e "Non trovato" valgono per ogni azienda.
 3. Per il soggetto trovato leggi `scadenze_aperte` come `cliente` e/o `fornitore` (secondo `ATTR`),
    scorrendo tutte le pagine. Per ogni ruolo calcola:
    - `aperto`: totale ancora da pagare/incassare;
@@ -28,6 +32,16 @@ Serve `FIREBASE_DB_SECRET` nell'ambiente e l'accesso di rete a
   "fornitore": { "aperto": 1200.5, "scaduto": 300, "n": 3 },
   "prossime": [{ "data": "2026-10-30", "importo": 300, "ruolo": "fornitore", "rif": "Fatt. 123/2026" }]
 }}]
+```
+
+Per un rappresentante:
+
+```json
+[{ "uid": "...", "cid": "...", "atlantis": { "mandanti": [
+  { "azienda": "Nome scritto nell'app", "codice": "0001234", "ragione": "RAGIONE SOCIALE", "nota": "",
+    "fornitore": { "aperto": 5000, "scaduto": 0, "n": 2 }, "prossime": [] },
+  { "azienda": "Altra azienda", "nota": "Non trovato in Atlantis" }
+]}}]
 ```
 
 Ometti `cliente` o `fornitore` se il soggetto non ha quel ruolo. `prossime`: al massimo 6 scadenze,

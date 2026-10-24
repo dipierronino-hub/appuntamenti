@@ -56,6 +56,9 @@ function elenco(giorni) {
         uid, cid, nome: c.nome || '', tipo: c.tipo || 'cliente', telefono: c.telefono || '', email: c.email || '',
         aziende: [...new Set(apps.map(x => x.azienda).filter(Boolean))],
         codiceAttuale: c.atlantis?.codice || '',
+        // Solo per i rappresentanti: le aziende che rappresentano e i codici Atlantis già abbinati.
+        mandanti: c.tipo === 'rappresentante' && Array.isArray(c.mandanti) ? c.mandanti.filter(Boolean) : [],
+        codiciMandanti: Object.fromEntries((c.atlantis?.mandanti || []).filter(m => m?.codice).map(m => [m.azienda, m.codice])),
         appuntamenti: apps.sort((x, y) => (x.data + x.ora).localeCompare(y.data + y.ora))
       });
     }
@@ -66,9 +69,10 @@ function elenco(giorni) {
 const num = v => Math.round((Number(v) || 0) * 100) / 100;
 
 // Tiene solo i campi attesi dall'app, così un dato sbagliato non rompe la schermata.
-function pulisci(at) {
-  const lato = x => (x ? { aperto: num(x.aperto), scaduto: num(x.scaduto), n: Math.max(0, Math.trunc(Number(x.n) || 0)) } : undefined);
-  const r = {
+const lato = x => (x ? { aperto: num(x.aperto), scaduto: num(x.scaduto), n: Math.max(0, Math.trunc(Number(x.n) || 0)) } : undefined);
+
+function soggetto(at) {
+  return {
     codice: String(at.codice || ''),
     ragione: String(at.ragione || '').slice(0, 160),
     nota: String(at.nota || '').slice(0, 160),
@@ -79,9 +83,16 @@ function pulisci(at) {
       importo: num(x.importo),
       ruolo: x.ruolo === 'fornitore' ? 'fornitore' : 'cliente',
       rif: String(x.rif || '').slice(0, 80)
-    })),
-    aggiornato: new Date().toISOString()
+    }))
   };
+}
+
+function pulisci(at) {
+  const r = { ...soggetto(at), aggiornato: new Date().toISOString() };
+  // Rappresentante: un soggetto Atlantis per ogni azienda rappresentata.
+  if (Array.isArray(at.mandanti) && at.mandanti.length) {
+    r.mandanti = at.mandanti.slice(0, 20).map(m => ({ azienda: String(m.azienda || '').slice(0, 120), ...soggetto(m) }));
+  }
   return JSON.parse(JSON.stringify(r));
 }
 
