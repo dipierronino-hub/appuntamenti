@@ -8,6 +8,8 @@ Serve `FIREBASE_DB_SECRET` nell'ambiente e l'accesso di rete a
 2. Per ogni contatto trova il soggetto in Atlantis con `cerca_soggetti`:
    - se `codiceAttuale` è presente, riusa quel codice;
    - altrimenti cerca per ognuna delle `aziende`, poi per telefono, email e nome;
+   - `tipo` (cliente, fornitore, tecnico, rappresentante) aiuta a scegliere: un fornitore va cercato
+     tra i fornitori, un cliente tra i clienti; tecnici e rappresentanti spesso non sono in Atlantis;
    - più risultati: preferisci quello con lo stesso telefono o email, poi quello con scadenze aperte;
      se resta ambiguo scegli il più probabile e metti `nota: "da verificare"`;
    - nessun risultato: scrivi solo `{ "nota": "Non trovato in Atlantis" }`.

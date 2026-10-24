@@ -53,7 +53,7 @@ function elenco(giorni) {
       const c = contatti[cid];
       if (!c) continue;
       out.push({
-        uid, cid, nome: c.nome || '', telefono: c.telefono || '', email: c.email || '',
+        uid, cid, nome: c.nome || '', tipo: c.tipo || 'cliente', telefono: c.telefono || '', email: c.email || '',
         aziende: [...new Set(apps.map(x => x.azienda).filter(Boolean))],
         codiceAttuale: c.atlantis?.codice || '',
         appuntamenti: apps.sort((x, y) => (x.data + x.ora).localeCompare(y.data + y.ora))
