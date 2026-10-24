@@ -82,7 +82,10 @@ function soggetto(at) {
       data: String(x.data || '').slice(0, 10),
       importo: num(x.importo),
       ruolo: x.ruolo === 'fornitore' ? 'fornitore' : 'cliente',
-      rif: String(x.rif || '').slice(0, 80)
+      rif: String(x.rif || '').slice(0, 80),
+      fattura: String(x.fattura || '').slice(0, 30),
+      dataFattura: String(x.dataFattura || '').slice(0, 10),
+      tipo: String(x.tipo || '').slice(0, 40)
     }))
   };
 }
