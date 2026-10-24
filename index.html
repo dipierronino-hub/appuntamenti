@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.10.1';
+const APP_VERSION = '2.10.2';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -2074,11 +2074,16 @@ function leggiVCard(testo) {
 function leggiTestoContatto(testo) {
   const t = String(testo || '');
   if (/BEGIN:VCARD/i.test(t)) return leggiVCard(t)[0] || null;
-  const righe = t.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+  // Le rubriche Samsung copiano "[Nome] Mario Rossi", "[Cellulare] 333…": l'etichetta tra parentesi si toglie,
+  // ma se è [Nome] quella riga è sicuramente il nome.
+  const ETICHETTA = /^\s*[\[(]([^\])]{1,30})[\])]\s*/;
+  const grezze = t.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+  const rigaNome = grezze.find(r => /^(nome|name)$/i.test((ETICHETTA.exec(r) || [])[1]?.trim() || ''));
+  const righe = grezze.map(r => r.replace(ETICHETTA, '').replace(/^(nome|name|cellulare|telefono|tel|mobile|casa|lavoro|email|e-mail)\s*:\s*/i, '').trim()).filter(Boolean);
   const email = (t.match(/[^\s@<>()]+@[^\s@<>()]+\.[a-z]{2,}/i) || [''])[0];
   const tel = (t.match(/(?:\+|00)?\d[\d\s.\-()/]{5,}\d/) || [''])[0].trim();
   // Prima riga senza numero né email; se non c'è, la prima riga ripulita da numero ed email.
-  const nome = righe.find(r => !r.includes('@') && !/\d{4,}/.test(r.replace(/\D/g, '')) && /[a-zà-ú]/i.test(r)) ||
+  const nome = (rigaNome && rigaNome.replace(ETICHETTA, '').trim()) || righe.find(r => !r.includes('@') && !/\d{4,}/.test(r.replace(/\D/g, '')) && /[a-zà-ú]/i.test(r)) ||
     (righe[0] || '').replace(email, '').replace(tel, '').replace(/[\s:,;\-–]+$/, '').trim();
   if (!nome && !tel && !email) return null;
   return { nome: nome.replace(/^(nome|name)\s*:\s*/i, '').slice(0, 120), telefono: tel, email, azienda: '' };
