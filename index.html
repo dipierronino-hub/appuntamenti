@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.9.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -775,7 +775,8 @@ const ICON_PATHS = {
   vibra: '<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 8v8M21 8v8"/>',
   send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
   down: '<path d="M12 5v14M19 12l-7 7-7-7"/>',
-  up: '<path d="M12 19V5M5 12l7-7 7 7"/>'
+  up: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+  book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><circle cx="12" cy="9" r="2.5"/><path d="M8.5 14a3.5 3.5 0 0 1 7 0"/>'
 };
 function icon(n, s = 18) {
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[n]}</svg>`;
@@ -2012,6 +2013,53 @@ function openPromemoria() {
   openPage('', disegna, { refresh: disegna });
 }
 
+// ===================== RUBRICA DEL TELEFONO E SUGGERIMENTI =====================
+// Chrome per Android apre la rubrica di sistema: l'utente sceglie, l'app riceve solo quel contatto.
+const rubricaDisponibile = () => 'contacts' in navigator && 'ContactsManager' in window;
+
+function campoNome(valore) {
+  return `<label class="field"><span>Cognome e nome</span>
+    <div style="display:flex;gap:8px">
+      <input class="input" name="nome" required maxlength="120" value="${esc(valore)}" autocomplete="off" list="suggContatti" placeholder="Es. Rossi Mario">
+      ${rubricaDisponibile() ? `<button type="button" class="btn btn-secondary" data-rubrica style="flex:none;min-height:46px" aria-label="Scegli dalla rubrica del telefono">${icon('book', 18)} Rubrica</button>` : ''}
+    </div>
+    <datalist id="suggContatti">${contattiOrdinati().map(k => `<option value="${esc(k.nome)}">${esc([k.telefono, k.email].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>
+  </label>`;
+}
+
+// Collega al modulo: suggerimenti dai contatti salvati e pulsante Rubrica.
+// suContatto(id) viene chiamato quando il nome corrisponde a un contatto già nell'app.
+function collegaNome(f, suContatto) {
+  // 'change' scatta quando si sceglie un suggerimento o si esce dal campo, non a ogni lettera.
+  f.nome.addEventListener('change', () => {
+    const q = norm(f.nome.value);
+    const k = contattiOrdinati().find(c => norm(c.nome) === q);
+    if (!k) return;
+    if (suContatto) suContatto(k.id);
+    if (k.telefono && !f.telefono.value) f.telefono.value = k.telefono;
+    if (k.email && !f.email.value) f.email.value = k.email;
+  });
+  const btn = f.querySelector('[data-rubrica]');
+  if (btn) btn.addEventListener('click', async () => {
+    try {
+      const [scelto] = await navigator.contacts.select(['name', 'tel', 'email'], { multiple: false });
+      if (!scelto) return;
+      const nome = (scelto.name || []).find(Boolean) || '';
+      const tel = (scelto.tel || []).find(Boolean) || '';
+      const email = (scelto.email || []).find(Boolean) || '';
+      // Se è già tra i contatti dell'app (stesso numero o stesso nome) si usa quello.
+      const giaPresente = contattiOrdinati().find(c => (tel && normTel(c.telefono) && normTel(c.telefono) === normTel(tel)) || (nome && norm(c.nome) === norm(nome)));
+      if (giaPresente && suContatto) suContatto(giaPresente.id);
+      if (nome) f.nome.value = nome;
+      if (tel) f.telefono.value = tel;
+      if (email) f.email.value = email;
+      toast(giaPresente ? 'Contatto già presente: dati collegati' : 'Dati presi dalla rubrica');
+    } catch (err) {
+      toast('Rubrica non disponibile su questo telefono');
+    }
+  });
+}
+
 // ===================== SCHERMATE: APPUNTAMENTO =====================
 function openAppForm(opt = {}) {
   const aid = opt.id || null;
@@ -2078,7 +2126,7 @@ function openAppForm(opt = {}) {
           <h2>Contatto</h2>
           <label class="field"><span>Rubrica</span>
             <select class="input" name="contattoId"><option value="">＋ Nuovo contatto</option>${opzioni}</select></label>
-          <label class="field"><span>Nome</span><input class="input" name="nome" required maxlength="120" value="${esc(v.nome)}" autocomplete="off"></label>
+          ${campoNome(v.nome)}
           <div class="field"><span>Tipo</span>${sceltaTipo(v.tipo)}</div>
           <div class="row2">
             <label class="field"><span>Telefono</span><input class="input" name="telefono" type="tel" value="${esc(v.telefono)}"></label>
@@ -2131,6 +2179,7 @@ function openAppForm(opt = {}) {
     ['data', 'ora', 'durata'].forEach(n => f[n].addEventListener('input', controlla));
     controlla();
     const segnaTipo = attivaTipo(f);
+    collegaNome(f, id => { f.contattoId.value = id; f.contattoId.dispatchEvent(new Event('change')); });
     f.contattoId.addEventListener('change', () => {
       const k = S.contatti[f.contattoId.value];
       if (!k) return;
@@ -2227,7 +2276,7 @@ function openContattoForm(opt = {}) {
   openModal(`
     <h2>${id ? 'Modifica contatto' : 'Nuovo contatto'}</h2>
     <form id="fc" style="display:flex;flex-direction:column;gap:12px">
-      <label class="field"><span>Nome</span><input class="input" name="nome" required maxlength="120" value="${esc(c.nome)}"></label>
+      ${campoNome(c.nome)}
       <div class="field"><span>Tipo</span>${sceltaTipo(id ? tipoDi(c) : (opt.tipo || 'cliente'))}</div>
       <div class="field" id="campoMandanti"><span>Aziende rappresentate</span>
         <div class="mandanti" id="listaMandanti">${(c.mandanti?.length ? c.mandanti : ['']).map(rigaMandante).join('')}</div>
@@ -2243,6 +2292,11 @@ function openContattoForm(opt = {}) {
         <button class="btn btn-primary">Salva</button>
       </div>
     </form>`, m => {
+    if (!id) collegaNome(m.querySelector('#fc'), cidEsistente => {
+      toast('Questo contatto esiste già: apro la sua scheda');
+      closeModal();
+      openContatto(cidEsistente);
+    });
     const fc = m.querySelector('#fc');
     const lista = m.querySelector('#listaMandanti');
     attivaTipo(fc, t => { m.querySelector('#campoMandanti').hidden = t !== 'rappresentante'; })(fc.tipo.value);
