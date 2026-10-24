@@ -473,7 +473,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
   </nav>
   <div class="fabs">
     <button id="mic" class="fab mic" data-act="voce" aria-label="Comando vocale"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></button>
-    <button class="fab add" data-act="nuovoApp" aria-label="Nuovo appuntamento"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="fab add" data-act="nuovoApp" aria-label="Aggiungi appuntamento o contatto"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   </div>
 </div>
 
@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.10.4';
+const APP_VERSION = '2.10.5';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -3223,7 +3223,20 @@ const ACTIONS = {
   nav: d => vaiA(d.v),
   logout: () => auth.signOut(),
   // Nella sezione Contatti il + crea un contatto, senza appuntamento.
-  nuovoApp: d => (S.vista === 'contatti' && !livelli.length && !d.data ? openContattoForm({ tipo: S.tipoC }) : openAppForm(d.data ? { data: d.data } : {})),
+  // Il + in basso chiede cosa creare; nella sezione Contatti crea direttamente un contatto.
+  nuovoApp: (d, el) => {
+    if (d.data || livelli.length || !el?.classList.contains('fab')) { openAppForm(d.data ? { data: d.data } : {}); return; }
+    if (S.vista === 'contatti') { openContattoForm({ tipo: S.tipoC }); return; }
+    openModal(`
+      <h2>Cosa vuoi aggiungere?</h2>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <button type="button" class="btn btn-primary" data-scelta="app" style="min-height:56px;font-size:16px;justify-content:flex-start;gap:12px">${icon('cal', 22)} Nuovo appuntamento</button>
+        <button type="button" class="btn btn-secondary" data-scelta="contatto" style="min-height:56px;font-size:16px;justify-content:flex-start;gap:12px">${icon('users', 22)} Nuovo contatto <span class="muted" style="font-weight:500;margin-left:auto">senza appuntamento</span></button>
+      </div>`, m => {
+      m.querySelector('[data-scelta="app"]').addEventListener('click', () => { closeModal(); openAppForm({}); });
+      m.querySelector('[data-scelta="contatto"]').addEventListener('click', () => { closeModal(); openContattoForm({ tipo: S.tipoC }); });
+    });
+  },
   voce: (d, el) => voiceStart(el),
   modificaApp: d => openAppForm({ id: d.id }),
   modificaPagamento: d => openPagamento(d.id),
