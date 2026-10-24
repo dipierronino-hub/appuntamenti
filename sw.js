@@ -1,6 +1,6 @@
 // Service worker: rende l'app installabile, la apre anche offline e gestisce i clic sulle notifiche.
 // Aggiornare VERSIONE insieme ad APP_VERSION in index.html a ogni rilascio.
-const VERSIONE = '2.6.0';
+const VERSIONE = '2.7.0';
 const CACHE = 'appuntamenti-' + VERSIONE;
 const FILE = ['./', 'index.html', 'manifest.json', 'icon.svg'];
 

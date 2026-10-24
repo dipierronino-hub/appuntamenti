@@ -30,7 +30,8 @@ Serve `FIREBASE_DB_SECRET` nell'ambiente e l'accesso di rete a
   "codice": "0002563", "ragione": "RAGIONE SOCIALE", "nota": "",
   "cliente": { "aperto": 0, "scaduto": 0, "n": 0 },
   "fornitore": { "aperto": 1200.5, "scaduto": 300, "n": 3 },
-  "prossime": [{ "data": "2026-10-30", "importo": 300, "ruolo": "fornitore", "rif": "Fatt. 123/2026" }]
+  "prossime": [{ "data": "2026-10-30", "importo": 300, "ruolo": "fornitore",
+                 "fattura": "123", "dataFattura": "2026-09-30", "tipo": "Rimessa diretta", "rif": "rata 1/2" }]
 }}]
 ```
 
@@ -43,6 +44,10 @@ Per un rappresentante:
   { "azienda": "Altra azienda", "nota": "Non trovato in Atlantis" }
 ]}}]
 ```
+
+Per ogni scadenza in `prossime`: `data` = PAC_DTSCAD, `fattura` = PA_SERIEDOC/PA_NUMDOC (es. "2607"),
+`dataFattura` = PA_DATDOC (le date di Atlantis sono millisecondi: convertile in AAAA-MM-GG con fuso Europe/Rome),
+`tipo` = PG_DESCR in minuscolo con l'iniziale maiuscola, `rif` = eventuale "rata N/M" o "a nostro favore".
 
 Ometti `cliente` o `fornitore` se il soggetto non ha quel ruolo. `prossime`: al massimo 6 scadenze,
 prima le scadute e poi le più vicine. Non inserire dati di Atlantis nel repository né nei log condivisi.
