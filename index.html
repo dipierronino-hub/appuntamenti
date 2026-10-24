@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.10.3';
+const APP_VERSION = '2.10.4';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -2222,10 +2222,8 @@ function collegaNome(f, suContatto) {
     // Scorciatoia: se hai appena copiato un contatto dalla rubrica, si usa subito quello.
     const copiato = await contattoDagliAppunti();
     if (copiato) { riempi(copiato); return; }
-    if (!rubricaDisponibile()) { sceltaRubrica(riempi); return; }
-    const k = await apriPicker();
-    // Se la rubrica non restituisce nulla si propongono subito le alternative.
-    if (k) riempi(k); else sceltaRubrica(riempi, 'La rubrica non ha passato il contatto. ' + diagPicker + ' Oppure usa una di queste strade:');
+    // Il selettore di Chrome su alcuni telefoni non restituisce nulla: si guida a copiare il contatto.
+    toast('Copia il contatto dalla rubrica del telefono, poi tocca di nuovo Rubrica');
   });
 }
 
@@ -3224,7 +3222,8 @@ function vaiA(vista) {
 const ACTIONS = {
   nav: d => vaiA(d.v),
   logout: () => auth.signOut(),
-  nuovoApp: d => openAppForm(d.data ? { data: d.data } : {}),
+  // Nella sezione Contatti il + crea un contatto, senza appuntamento.
+  nuovoApp: d => (S.vista === 'contatti' && !livelli.length && !d.data ? openContattoForm({ tipo: S.tipoC }) : openAppForm(d.data ? { data: d.data } : {})),
   voce: (d, el) => voiceStart(el),
   modificaApp: d => openAppForm({ id: d.id }),
   modificaPagamento: d => openPagamento(d.id),
