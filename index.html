@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.9.0';
+const APP_VERSION = '2.9.1';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -2018,13 +2018,13 @@ function openPromemoria() {
 const rubricaDisponibile = () => 'contacts' in navigator && 'ContactsManager' in window;
 
 function campoNome(valore) {
-  return `<label class="field"><span>Cognome e nome</span>
+  return `<div class="field"><label for="campoNome" style="font-size:12px;font-weight:600;color:var(--color-muted)">Cognome e nome</label>
     <div style="display:flex;gap:8px">
-      <input class="input" name="nome" required maxlength="120" value="${esc(valore)}" autocomplete="off" list="suggContatti" placeholder="Es. Rossi Mario">
+      <input class="input" id="campoNome" name="nome" required maxlength="120" value="${esc(valore)}" autocomplete="off" list="suggContatti" placeholder="Es. Rossi Mario">
       ${rubricaDisponibile() ? `<button type="button" class="btn btn-secondary" data-rubrica style="flex:none;min-height:46px" aria-label="Scegli dalla rubrica del telefono">${icon('book', 18)} Rubrica</button>` : ''}
     </div>
     <datalist id="suggContatti">${contattiOrdinati().map(k => `<option value="${esc(k.nome)}">${esc([k.telefono, k.email].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>
-  </label>`;
+  </div>`;
 }
 
 // Collega al modulo: suggerimenti dai contatti salvati e pulsante Rubrica.
@@ -2042,20 +2042,35 @@ function collegaNome(f, suContatto) {
   const btn = f.querySelector('[data-rubrica]');
   if (btn) btn.addEventListener('click', async () => {
     try {
-      const [scelto] = await navigator.contacts.select(['name', 'tel', 'email'], { multiple: false });
-      if (!scelto) return;
+      // Si chiedono solo i campi che questo telefono supporta, altrimenti Chrome rifiuta la richiesta.
+      let campi = ['name', 'tel', 'email'];
+      try {
+        const supportati = await navigator.contacts.getProperties();
+        if (Array.isArray(supportati) && supportati.length) campi = campi.filter(c => supportati.includes(c));
+      } catch (e) { /* si usano i campi predefiniti */ }
+      const risultato = await navigator.contacts.select(campi, { multiple: false });
+      const scelto = Array.isArray(risultato) ? risultato[0] : null;
+      if (!scelto) {
+        toast('Nessun contatto ricevuto: tocca il contatto e poi il pulsante di conferma in alto (Condividi / Fine)');
+        return;
+      }
       const nome = (scelto.name || []).find(Boolean) || '';
       const tel = (scelto.tel || []).find(Boolean) || '';
       const email = (scelto.email || []).find(Boolean) || '';
       // Se è già tra i contatti dell'app (stesso numero o stesso nome) si usa quello.
       const giaPresente = contattiOrdinati().find(c => (tel && normTel(c.telefono) && normTel(c.telefono) === normTel(tel)) || (nome && norm(c.nome) === norm(nome)));
       if (giaPresente && suContatto) suContatto(giaPresente.id);
+      if (!nome && !tel && !email) {
+        toast('Il contatto scelto non ha nome né numero leggibili');
+        return;
+      }
       if (nome) f.nome.value = nome;
-      if (tel) f.telefono.value = tel;
+      if (tel) f.telefono.value = normTel(tel) || tel;
       if (email) f.email.value = email;
+      [f.nome, f.telefono, f.email].forEach(el => el.dispatchEvent(new Event('input', { bubbles: true })));
       toast(giaPresente ? 'Contatto già presente: dati collegati' : 'Dati presi dalla rubrica');
     } catch (err) {
-      toast('Rubrica non disponibile su questo telefono');
+      toast('Rubrica non riuscita: ' + (err?.name || '') + ' ' + (err?.message || ''));
     }
   });
 }
