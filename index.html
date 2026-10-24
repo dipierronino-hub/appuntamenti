@@ -390,6 +390,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 .filtri-tipo>button[aria-pressed="true"]{color:var(--color-text);border-color:var(--tt,var(--accent));background:color-mix(in srgb,var(--tt,var(--accent)) 20%,transparent)}
 .filtri-tipo>button small{opacity:.7;margin-left:4px}
 .lista-rate{display:flex;flex-direction:column;gap:10px}
+.btn-assegni{align-self:flex-start;min-height:36px;padding:4px 0;font-size:13px;margin-top:2px}
 .rata{padding:12px;display:flex;flex-direction:column;gap:10px;border-radius:var(--r-md)}
 .rata-testa{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .rata-pagata{min-height:40px;padding:6px 12px;font-size:13px}
@@ -1387,6 +1388,17 @@ function pulisciMandanti(lista) {
 const rigaMandante = (v = '') => `<div class="mandante"><input class="input" name="mandante" maxlength="120" placeholder="Nome azienda" value="${esc(v)}" autocomplete="off">
   <button type="button" class="btn btn-ghost btn-icon" data-rimuovi aria-label="Togli azienda">${icon('close', 18)}</button></div>`;
 const MODALITA = { bonifico: 'Bonifico', contanti: 'Contanti', assegno: 'Assegno', carta: 'Carta / POS', riba: 'RiBa', altro: 'Altro' };
+// App Assegni (assegni emessi da Mirisa): il link apre la scheda "Nuovo assegno" già compilata.
+const APP_ASSEGNI = 'https://assegni-mirisa.web.app/';
+function linkAssegni(a, c, x, i, n) {
+  const p = new URLSearchParams({
+    data: x.data, importo: Number(x.importo).toFixed(2),
+    beneficiario: a.azienda || c.nome || '',
+    causale: [a.motivo, n ? `rata ${i + 1} di ${n}` : ''].filter(Boolean).join(' - ')
+  });
+  return APP_ASSEGNI + '#nuovo?' + p;
+}
+const bottoneAssegni = href => `<a class="btn btn-ghost btn-assegni" data-act="rapida" href="${esc(href)}" target="_blank" rel="noopener">${icon('right', 15)} Registra in Assegni</a>`;
 const rateDi = a => (Array.isArray(a?.rate) ? a.rate.filter(x => x && validDate(x.data)).map(x => ({ ...x })) : []);
 // Stesso giorno k mesi dopo; se il mese è più corto si usa l'ultimo giorno (31/01 → 28/02).
 function piuMesi(iso, k) {
@@ -2435,9 +2447,11 @@ function openDettaglio(aid) {
           <div><div class="cella-k">${ETICHETTE_PAGAMENTO[movimentoDi(a)]['da-saldare']}${statoPag(a) === 'acconto' ? ' · acconto ' + esc(euro(a.acconto)) : ''}</div><div class="cella-v" style="color:${residuo(a) ? coloreMov(a) : 'var(--color-muted)'}">${haImporto(a) ? esc(euro(residuo(a))) : '—'}</div></div>
         </div>
         ${MODALITA[a.modalita] && !rateDi(a).length ? `<div class="card-meta">Modalità: ${esc(MODALITA[a.modalita])}</div>` : ''}
+        ${!rateDi(a).length && haImporto(a) && movimentoDi(a) === 'uscita' && a.modalita === 'assegno' ? bottoneAssegni(linkAssegni(a, c, { data: a.data, importo: residuo(a) || a.importo })) : ''}
         ${rateDi(a).length ? `<div class="lista-righe">${rateDi(a).map((x, i, tutte) => `<div class="riga">
             <div class="testo"><div style="font-weight:600">Rata ${i + 1} di ${tutte.length} · ${esc(fmtCorta(x.data))}${!x.pagata && x.data < todayISO() ? ' <span class="tag tag-bad">scaduta</span>' : ''}</div>
-              <div class="card-meta">${esc(euro(x.importo))}${MODALITA[x.modalita] ? ' · ' + esc(MODALITA[x.modalita]) : ''}</div></div>
+              <div class="card-meta">${esc(euro(x.importo))}${MODALITA[x.modalita] ? ' · ' + esc(MODALITA[x.modalita]) : ''}</div>
+              ${movimentoDi(a) === 'uscita' && x.modalita === 'assegno' ? bottoneAssegni(linkAssegni(a, c, x, i, tutte.length)) : ''}</div>
             <button type="button" class="btn btn-secondary rata-pagata" data-act="rata" data-id="${esc(aid)}" data-i="${i}" aria-pressed="${!!x.pagata}">${icon('check', 15)} ${x.pagata ? (movimentoDi(a) === 'uscita' ? 'Pagata' : 'Incassata') : 'Da saldare'}</button>
           </div>`).join('')}</div>`
           : `<div class="seg seg-pay" data-mov="${movimentoDi(a)}">${Object.keys(PAGAMENTI).map(k => `<button type="button" data-act="pagamento" data-id="${esc(aid)}" data-p="${k}" aria-pressed="${statoPag(a) === k}">${etichettaPag(a, k)}</button>`).join('')}</div>`}
