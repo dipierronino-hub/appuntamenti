@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.10.2';
+const APP_VERSION = '2.10.3';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -2179,6 +2179,23 @@ async function apriPicker() {
   }
 }
 
+// Legge dagli appunti un contatto copiato dalla rubrica (es. "[Nome] … [Cellulare] …").
+// Lo stesso testo non viene riusato due volte, così un vecchio contatto copiato non si ripresenta.
+async function contattoDagliAppunti() {
+  try {
+    if (!navigator.clipboard?.readText) return null;
+    const testo = (await navigator.clipboard.readText()).trim();
+    if (!testo || testo.length > 600 || testo === lsGet('ultimo_incolla')) return null;
+    const k = leggiTestoContatto(testo);
+    // Serve almeno un numero o un'email: un testo qualsiasi negli appunti non è un contatto.
+    if (!k || !(normTel(k.telefono) || isEmail(k.email))) return null;
+    lsSet('ultimo_incolla', testo);
+    return k;
+  } catch (e) {
+    return null; // permesso negato o appunti non leggibili: si passa alla rubrica
+  }
+}
+
 // Collega al modulo: suggerimenti dai contatti salvati e pulsante Rubrica.
 // suContatto(id) viene chiamato quando il nome corrisponde a un contatto già nell'app.
 function collegaNome(f, suContatto) {
@@ -2202,6 +2219,9 @@ function collegaNome(f, suContatto) {
   };
   const btn = f.querySelector('[data-rubrica]');
   if (btn) btn.addEventListener('click', async () => {
+    // Scorciatoia: se hai appena copiato un contatto dalla rubrica, si usa subito quello.
+    const copiato = await contattoDagliAppunti();
+    if (copiato) { riempi(copiato); return; }
     if (!rubricaDisponibile()) { sceltaRubrica(riempi); return; }
     const k = await apriPicker();
     // Se la rubrica non restituisce nulla si propongono subito le alternative.
