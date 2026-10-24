@@ -460,7 +460,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '2.4.0';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
 const GOOGLE_CLIENT_ID = "215870183788-sahmel22cqnd110ff1lrsf8tch3s1lco.apps.googleusercontent.com";
 const GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly";
@@ -2060,6 +2060,40 @@ function azioniContatto(c, appId = '', cid = '', a = null) {
   </div>`;
 }
 
+// Situazione del cliente o fornitore nel gestionale Atlantis.
+// I dati (contatti/<id>/atlantis) li scrive ogni mattina l'aggiornamento automatico: l'app li mostra soltanto.
+function sezioneAtlantis(c) {
+  const at = c.atlantis;
+  if (!at || typeof at !== 'object') return '';
+  const quando = at.aggiornato ? new Date(at.aggiornato).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  if (!at.codice) {
+    return `<div class="sezione"><h2>Situazione Atlantis</h2>
+      <p class="muted" style="margin:0">${esc(at.nota || 'Nessun soggetto trovato in Atlantis')}${quando ? ' · controllato il ' + esc(quando) : ''}</p></div>`;
+  }
+  const lato = (k, titolo, colore) => {
+    const x = at[k];
+    if (!x) return '';
+    return `<div><div class="cella-k">${titolo}</div>
+      <div class="cella-v" style="color:${x.aperto ? colore : 'var(--color-muted)'}">${esc(euro(x.aperto))}</div>
+      ${x.scaduto ? `<div class="tag tag-bad" style="margin-top:6px">scaduto ${esc(euro(x.scaduto))}</div>` : `<div class="muted" style="font-size:12px;margin-top:4px">${x.n ? plurale(x.n, 'scadenza aperta', 'scadenze aperte') : 'nessuna scadenza aperta'}</div>`}
+    </div>`;
+  };
+  const celle = [lato('cliente', 'Ci deve', 'var(--in)'), lato('fornitore', 'Dobbiamo', 'var(--out)')].filter(Boolean);
+  const prossime = Array.isArray(at.prossime) ? at.prossime.slice(0, 4) : [];
+  return `<div class="sezione"><h2><span>Situazione Atlantis</span><span style="text-transform:none;letter-spacing:0;font-weight:600">${esc(quando)}</span></h2>
+    <div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:2px">
+      <div class="card-title" style="overflow-wrap:anywhere">${esc(at.ragione || '')}</div>
+      <div class="card-meta">Codice ${esc(at.codice)}${at.nota ? ' · ' + esc(at.nota) : ''}</div>
+    </div>
+    ${celle.length ? `<div class="griglia" style="grid-template-columns:repeat(${celle.length},minmax(0,1fr))">${celle.join('')}</div>` : ''}
+    ${prossime.length ? `<div class="lista-righe">${prossime.map(x => `<div class="riga">
+        <div class="testo"><div style="font-weight:600">${esc(validDate(x.data) ? fmtCorta(x.data) : x.data || '')}${x.data && x.data < todayISO() ? ' <span class="tag tag-bad">scaduta</span>' : ''}</div>
+          <div class="card-meta">${esc([x.ruolo === 'fornitore' ? 'Da pagare' : 'Da incassare', x.rif].filter(Boolean).join(' · '))}</div></div>
+        <span class="importo" style="color:${x.ruolo === 'fornitore' ? 'var(--out)' : 'var(--in)'}">${esc(euro(x.importo))}</span>
+      </div>`).join('')}</div>` : ''}
+  </div>`;
+}
+
 function openDettaglio(aid) {
   if (!S.appuntamenti[aid]) { toast('Appuntamento non trovato'); return; }
   const disegna = box => {
@@ -2117,6 +2151,7 @@ function openDettaglio(aid) {
         </div>
         ${azioniContatto(c, aid, a.contattoId, a)}
       </div>
+      ${sezioneAtlantis(c)}
 
       ${a.luogo ? `<div class="sezione"><h2>Luogo</h2>
         <a class="blueprint" data-act="rapida" href="${esc(linkNavigazione(a.luogo))}" target="_blank" rel="noopener" style="padding:12px 14px;display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--color-text)">${CORNERS}
@@ -2177,6 +2212,7 @@ function openContatto(cid) {
           <h1 style="font-size:32px;overflow-wrap:anywhere">${esc(c.nome)}</h1></div>
       </div>
       ${azioniContatto(c, '', cid)}
+      ${sezioneAtlantis(c)}
       <div class="griglia verticale">
         <div><div class="cella-k">Telefono</div><div style="font-size:16px">${c.telefono ? `<a href="tel:${esc(c.telefono)}">${esc(c.telefono)}</a>` : '—'}</div></div>
         <div><div class="cella-k">Email</div><div style="font-size:16px;overflow-wrap:anywhere">${c.email ? esc(c.email) : '—'}</div></div>
