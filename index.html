@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.10.0';
+const APP_VERSION = '2.10.1';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -2123,7 +2123,7 @@ function sceltaRubrica(usa, motivo = '') {
     const fatto = k => { closeModal(); usa(k); };
     m.querySelector('[data-r="picker"]')?.addEventListener('click', async () => {
       const k = await apriPicker();
-      if (k) fatto(k); else toast('Nessun contatto ricevuto: prova con il file .vcf');
+      if (k) fatto(k); else toast(diagPicker || 'Nessun contatto ricevuto: prova con il file .vcf');
     });
     m.querySelector('[data-r="file"]').addEventListener('change', async e => {
       const file = e.target.files[0];
@@ -2141,7 +2141,10 @@ function sceltaRubrica(usa, motivo = '') {
 }
 
 // Contact Picker di Chrome per Android; restituisce il contatto o null.
+// diagPicker descrive cosa è tornato davvero, per capire i telefoni dove non funziona.
+let diagPicker = '';
 async function apriPicker() {
+  diagPicker = '';
   try {
     // Si chiedono solo i campi che questo telefono supporta, altrimenti Chrome rifiuta la richiesta.
     let campi = ['name', 'tel', 'email'];
@@ -2151,14 +2154,22 @@ async function apriPicker() {
     } catch (e) { /* si usano i campi predefiniti */ }
     const risultato = await navigator.contacts.select(campi, { multiple: false });
     const scelto = Array.isArray(risultato) ? risultato[0] : null;
-    if (!scelto) return null;
+    if (!scelto) {
+      diagPicker = `Dettaglio: la rubrica ha restituito un elenco vuoto (campi richiesti: ${campi.join(', ')}). Riprova senza usare la ricerca: scorri fino al contatto, toccalo e premi Fine.`;
+      return null;
+    }
     const k = {
       nome: (scelto.name || []).find(Boolean) || '',
       telefono: (scelto.tel || []).find(Boolean) || '',
       email: (scelto.email || []).find(Boolean) || ''
     };
-    return k.nome || k.telefono || k.email ? k : null;
+    if (!(k.nome || k.telefono || k.email)) {
+      diagPicker = `Dettaglio: contatto ricevuto ma senza dati (${Object.keys(scelto).join(', ') || 'nessun campo'}).`;
+      return null;
+    }
+    return k;
   } catch (err) {
+    diagPicker = `Dettaglio: errore della rubrica (${err?.name || ''} ${err?.message || ''}).`;
     return null;
   }
 }
@@ -2189,7 +2200,7 @@ function collegaNome(f, suContatto) {
     if (!rubricaDisponibile()) { sceltaRubrica(riempi); return; }
     const k = await apriPicker();
     // Se la rubrica non restituisce nulla si propongono subito le alternative.
-    if (k) riempi(k); else sceltaRubrica(riempi, 'La rubrica non ha passato il contatto. Usa una di queste strade:');
+    if (k) riempi(k); else sceltaRubrica(riempi, 'La rubrica non ha passato il contatto. ' + diagPicker + ' Oppure usa una di queste strade:');
   });
 }
 
