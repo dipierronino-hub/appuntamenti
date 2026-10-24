@@ -1,6 +1,6 @@
 // Service worker: rende l'app installabile, la apre anche offline e gestisce i clic sulle notifiche.
 // Aggiornare VERSIONE insieme ad APP_VERSION in index.html a ogni rilascio.
-const VERSIONE = '2.7.0';
+const VERSIONE = '2.8.0';
 const CACHE = 'appuntamenti-' + VERSIONE;
 const FILE = ['./', 'index.html', 'manifest.json', 'icon.svg'];
 
@@ -39,5 +39,18 @@ self.addEventListener('notificationclick', e => {
       return f.focus();
     }
     return self.clients.openWindow(id ? './?app=' + encodeURIComponent(id) : './');
+  }));
+});
+
+// Notifica push inviata da scripts/push-promemoria.mjs: arriva anche ad app chiusa.
+self.addEventListener('push', e => {
+  let m = {};
+  try { m = e.data ? e.data.json() : {}; } catch (err) { m = { corpo: e.data?.text() }; }
+  e.waitUntil(self.registration.showNotification(m.titolo || 'Promemoria appuntamento', {
+    body: m.corpo || '',
+    tag: m.id || 'prova',
+    icon: 'icon.svg',
+    badge: 'icon.svg',
+    data: { id: m.id || '' }
   }));
 });

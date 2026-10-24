@@ -1,0 +1,29 @@
+# Notifiche push dei promemoria: ogni 5 minuti controlla gli appuntamenti e avvisa i telefoni.
+# Serve il secret del repository FIREBASE_DB_SECRET (Settings → Secrets and variables → Actions).
+name: Promemoria push
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: promemoria-push
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  invia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save --no-package-lock web-push@3.6.7
+      - run: node scripts/push-promemoria.mjs
+        env:
+          FIREBASE_DB_SECRET: ${{ secrets.FIREBASE_DB_SECRET }}
