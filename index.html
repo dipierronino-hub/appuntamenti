@@ -402,7 +402,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 .mandante>.input{flex:1;min-width:0}
 .mandante>button{flex:none;width:var(--tap);height:var(--tap)}
 .chips-mandanti{display:flex;flex-wrap:wrap;gap:6px}
-.chips-mandanti>span{--tt:var(--t-rap);font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;color:var(--color-text);background:color-mix(in srgb,var(--tt) 14%,transparent);border:1px solid color-mix(in srgb,var(--tt) 30%,transparent);overflow-wrap:anywhere}
+.chips-mandanti>a{display:inline-flex;align-items:center;gap:4px;text-decoration:none;--tt:var(--t-rap);font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;color:var(--color-text);background:color-mix(in srgb,var(--tt) 14%,transparent);border:1px solid color-mix(in srgb,var(--tt) 30%,transparent);overflow-wrap:anywhere}
 .seg-mov>button[data-m="uscita"][aria-pressed="true"]{background:linear-gradient(135deg,#ea580c,#fb7185);box-shadow:0 4px 16px rgba(249,115,22,.35)}
 .importo{font-weight:800;font-size:14px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .seg-pay>button[data-p="da-saldare"][aria-pressed="true"]{background:linear-gradient(135deg,#059669,#34d399);box-shadow:0 4px 16px rgba(16,185,129,.35)}
@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.10.5';
+const APP_VERSION = '2.11.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1499,6 +1499,16 @@ function linkAssegni(a, c, x, i, n) {
   if (as?.numero) p.set('numero', as.numero);
   return APP_ASSEGNI + '#nuovo?' + p;
 }
+// Assegni di un'azienda rappresentata: l'app Assegni cerca la parola che la distingue
+// ("CERAMICHE ATLAS CONCORDE S.P.A" → "atlas"), così trova anche "Atlas Concorde" scritto a mano.
+const FORME_SOCIETA = /\b(s\s?r\s?l|s\s?p\s?a|s\s?n\s?c|s\s?a\s?s|s\s?c\s?p\s?a|s\s?c\s?a\s?r\s?l|s\s?l|unipersonale)\b/g;
+const PAROLE_GENERICHE = new Set(['ceramiche', 'ceramica', 'rubinetteria', 'rubinetterie', 'gruppo', 'group', 'the', 'di', 'la', 'il', 'lo', 'le', 'ditta', 'company', 'italia', 'italian']);
+function parolaAzienda(nome) {
+  const parole = norm(String(nome ?? '').replace(/\./g, '')).replace(FORME_SOCIETA, ' ').split(' ').filter(Boolean);
+  return parole.find(x => !PAROLE_GENERICHE.has(x)) || parole[0] || '';
+}
+const linkAssegniAzienda = nome => APP_ASSEGNI + '#cerca?' + new URLSearchParams({ q: parolaAzienda(nome) });
+const chipAzienda = nome => `<a data-act="rapida" href="${esc(linkAssegniAzienda(nome))}" target="_blank" rel="noopener" aria-label="Assegni di ${esc(nome)}">${esc(nome)} ${icon('right', 13)}</a>`;
 const bottoneAssegni = href => `<a class="btn btn-ghost btn-assegni" data-act="rapida" href="${esc(href)}" target="_blank" rel="noopener">${icon('right', 15)} Registra in Assegni</a>`;
 const rateDi = a => (Array.isArray(a?.rate) ? a.rate.filter(x => x && validDate(x.data)).map(x => ({ ...x })) : []);
 // Stesso giorno k mesi dopo; se il mese è più corto si usa l'ultimo giorno (31/01 → 28/02).
@@ -2772,7 +2782,7 @@ function sezioneAtlantis(c) {
   if (mandanti.length) {
     return `<div class="sezione"><h2><span>Situazione Atlantis</span><span style="text-transform:none;letter-spacing:0;font-weight:600">${esc(quando)}</span></h2>
       ${mandanti.map(x => `<div style="display:flex;flex-direction:column;gap:10px">
-        <div class="card-kicker" style="font-size:11px">${esc(x.azienda || x.ragione || '')}</div>${soggettoAtlantis(x)}</div>`).join('')}
+        <div class="chips-mandanti">${chipAzienda(x.azienda || x.ragione || '')}</div>${soggettoAtlantis(x)}</div>`).join('')}
     </div>`;
   }
   if (!at.codice) {
@@ -2835,7 +2845,7 @@ function openDettaglio(aid) {
           ${a.rinvii ? `<span class="tag tag-warn">rimandato ${esc(a.rinvii)}×</span>` : ''}
           ${inRitardo ? '<span class="tag tag-bad">in ritardo</span>' : ''}
         </div>
-        ${a.azienda ? `<div class="card-kicker" style="font-size:11px">${esc(a.azienda)}</div>` : ''}
+        ${a.azienda ? (tipoDi(c) === 'rappresentante' ? `<div class="chips-mandanti">${chipAzienda(a.azienda)}</div>` : `<div class="card-kicker" style="font-size:11px">${esc(a.azienda)}</div>`) : ''}
         <h1 style="font-size:34px;overflow-wrap:anywhere;text-decoration:${a.stato === 'annullato' ? 'line-through' : 'none'}">${esc(a.motivo || c.nome || 'Appuntamento')}</h1>
       </div>
 
@@ -2936,7 +2946,7 @@ function openContatto(cid) {
           <h1 style="font-size:32px;overflow-wrap:anywhere">${esc(c.nome)}</h1></div>
       </div>
       ${azioniContatto(c, '', cid)}
-      ${mandantiDi(c).length ? `<div class="sezione"><h2>Aziende rappresentate · ${mandantiDi(c).length}</h2><div class="chips-mandanti">${mandantiDi(c).map(x => `<span>${esc(x)}</span>`).join('')}</div></div>` : ''}
+      ${mandantiDi(c).length ? `<div class="sezione"><h2>Aziende rappresentate · ${mandantiDi(c).length}</h2><div class="chips-mandanti">${mandantiDi(c).map(chipAzienda).join('')}</div><p class="muted" style="margin:8px 0 0;font-size:12px">Tocca un'azienda per vedere i suoi assegni.</p></div>` : ''}
       ${sezioneAtlantis(c)}
       <div class="griglia verticale">
         <div><div class="cella-k">Telefono</div><div style="font-size:16px">${c.telefono ? `<a href="tel:${esc(c.telefono)}">${esc(c.telefono)}</a>` : '—'}</div></div>
