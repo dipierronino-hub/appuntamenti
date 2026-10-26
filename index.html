@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.14.0';
+const APP_VERSION = '2.15.1';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1186,18 +1186,24 @@ const MODELLO_IA_PREDEFINITO = 'gemini-2.5-flash';
 
 // Chiamata all'API Gemini. Con comeJson restituisce un oggetto, altrimenti il testo.
 // allegati: [{ mimeType, data }] in base64 (foto o PDF), mandati insieme al testo.
+// Se il modello scelto è stato ritirato (404) o è sovraccarico (5xx) si prova il successivo.
+const MODELLI_IA_RISERVA = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest'];
 async function chiediGemini(prompt, comeJson = true, allegati = []) {
   const chiave = lsGet('gemini_key');
   if (!chiave) throw new Error('chiave mancante');
-  const modello = lsGet('gemini_model') || MODELLO_IA_PREDEFINITO;
-  const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modello) + ':generateContent', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chiave },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }, ...allegati.map(x => ({ inlineData: x }))] }],
-      generationConfig: comeJson ? { temperature: 0.2, responseMimeType: 'application/json' } : { temperature: 0.4 }
-    })
-  });
+  const modelli = [...new Set([lsGet('gemini_model') || MODELLO_IA_PREDEFINITO, ...MODELLI_IA_RISERVA])];
+  let r;
+  for (const modello of modelli) {
+    r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modello) + ':generateContent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chiave },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }, ...allegati.map(x => ({ inlineData: x }))] }],
+        generationConfig: comeJson ? { temperature: 0.2, responseMimeType: 'application/json' } : { temperature: 0.4 }
+      })
+    });
+    if (r.ok || !(r.status === 404 || r.status >= 500)) break;
+  }
   if (!r.ok) throw new Error('Gemini ' + r.status);
   const j = await r.json();
   const testo = (j?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
@@ -1215,6 +1221,8 @@ function messaggioIA(err) {
   if (/Gemini (400|401|403)/.test(m)) return 'Chiave Gemini non valida: controllala nelle Impostazioni';
   if (m.includes('Gemini 429')) return 'Troppe richieste: riprova tra un minuto';
   if (m.includes('formato') || m.includes('risposta vuota')) return 'L’assistente non ha capito: prova a riscrivere il messaggio';
+  const codice = /Gemini (\d+)/.exec(m);
+  if (codice) return `Assistente IA non disponibile (errore ${codice[1]}): riprova tra poco`;
   return 'Assistente IA non disponibile. Controlla la connessione.';
 }
 
@@ -1632,7 +1640,13 @@ function renderAgenda() {
   const kicker = (sel === oggi ? 'Oggi · ' : sel === isoOf(addDays(new Date(), 1)) ? 'Domani · ' : sel === isoOf(addDays(new Date(), -1)) ? 'Ieri · ' : '') + fmt(sel, { weekday: 'long' });
   const titolo = fmt(sel, { day: 'numeric', month: 'long' }) + (selD.getFullYear() !== new Date().getFullYear() ? ' ' + selD.getFullYear() : '');
 
-  const items = appDelGiorno(sel);
+  // I completati si raccolgono in una riga chiusa, così la giornata resta libera (si aprono toccandola).
+  const delGiorno = appDelGiorno(sel);
+  const completati = delGiorno.filter(a => a.stato === 'completato');
+  const items = S.vediCompletati ? delGiorno : delGiorno.filter(a => a.stato !== 'completato');
+  const rigaCompletati = completati.length
+    ? `<button type="button" class="btn btn-ghost" data-act="vediCompletati" style="align-self:flex-start" aria-expanded="${!!S.vediCompletati}">${icon('check', 16)} ${plurale(completati.length, 'completato', 'completati')} · ${S.vediCompletati ? 'nascondi' : 'mostra'}</button>`
+    : '';
   const anima = S.animaGiorno;
   S.animaGiorno = false;
   const attivi = items.filter(a => a.stato !== 'annullato');
@@ -1697,7 +1711,7 @@ function renderAgenda() {
     </div>
     <div class="summary">${summary}</div>
     ${pilloleTotali(totaliAperti(attivi))}
-    <div class="${anima ? 'entra-giorno' : ''}" style="display:flex;flex-direction:column;gap:16px">${corpo}</div>
+    <div class="${anima ? 'entra-giorno' : ''}" style="display:flex;flex-direction:column;gap:16px">${corpo}${rigaCompletati}</div>
   </div>`;
 }
 
@@ -3473,6 +3487,7 @@ const ACTIONS = {
   // agenda
   modoAgenda: d => { S.modoAgenda = d.m; lsSet('modo_agenda', d.m); render(); },
   giorno: d => { if (S.giorno !== d.d) S.animaGiorno = true; S.giorno = d.d; render(); },
+  vediCompletati: () => { S.vediCompletati = !S.vediCompletati; render(); },
   settimana: d => { S.animaGiorno = true; S.giorno = isoOf(addDays(isoToDate(S.giorno || todayISO()), Number(d.k))); render(); },
   vaiOggi: () => { S.animaGiorno = true; S.giorno = todayISO(); render(); },
   // calendario
