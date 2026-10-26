@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.13.0';
+const APP_VERSION = '2.14.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -835,7 +835,10 @@ function apriLivello(html, { tipo = 'page', anim = '', onMount, refresh } = {}) 
   if (tipo === 'sheet') wrap.querySelector('.backdrop').addEventListener('click', closeModal);
   document.body.appendChild(wrap);
   const box = wrap.lastElementChild;
-  livelli.push({ el: wrap, refresh });
+  const livello = { el: wrap, refresh };
+  // Schermata in cui si sta scrivendo: al ritorno nell'app non va chiusa.
+  wrap.addEventListener('input', () => { livello.scritto = true; });
+  livelli.push(livello);
   if (onMount) onMount(box);
   const primo = box.querySelector('[autofocus]');
   if (primo) primo.focus();
@@ -2836,10 +2839,50 @@ function openAzienda(cid, nome) {
     <h2 style="overflow-wrap:anywhere">${esc(nome)}</h2>
     <p class="muted" style="margin:0;font-size:13px">${c.nome ? 'Rappresentante: ' + esc(c.nome) : ''}${quando ? ' · Atlantis aggiornato il ' + esc(quando) : ''}</p>
     <div class="sezione"><h2>Situazione contabile</h2>
-      ${m ? soggettoAtlantis(m, 6) : '<p class="muted" style="margin:0">Situazione non ancora disponibile: si aggiorna ogni mattina alle 6:40.</p>'}
+      ${m ? soggettoAtlantis(m, haFatture(m) ? 0 : 6) : '<p class="muted" style="margin:0">Situazione non ancora disponibile: si aggiorna ogni mattina alle 6:40.</p>'}
     </div>
+    ${haFatture(m) ? `<div class="sezione"><h2>Fatture da chiudere</h2><div data-fatture>${fattureDaChiudere(m, null)}</div></div>` : ''}
     <div class="sezione"><h2>Assegni emessi</h2><div data-assegni><p class="muted" style="margin:0">Carico gli assegni…</p></div></div>
-    <button type="button" class="btn btn-secondary" data-act="chiudi">Chiudi</button>`, box => mostraAssegniAzienda(box.querySelector('[data-assegni]'), nome));
+    <button type="button" class="btn btn-secondary" data-act="chiudi">Chiudi</button>`, box => mostraAssegniAzienda(box.querySelector('[data-assegni]'), nome, lista => {
+    const el = box.querySelector('[data-fatture]');
+    if (el) el.innerHTML = fattureDaChiudere(m, lista);
+  }));
+}
+
+const haFatture = m => Array.isArray(m?.fatture) && m.fatture.length > 0;
+
+// Fatture ancora aperte in Atlantis: per ognuna gli assegni emessi che la citano nella causale ("FT.N. 1044")
+// e quanto resta da chiudere. Gli assegni già pagati sono di solito già registrati in Atlantis, quindi non si tolgono.
+function fattureDaChiudere(m, assegni) {
+  const oggi = todayISO();
+  const cita = (x, numero) => new RegExp(`(^|\\D)0*${numero.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\D|$)`).test(String(x.causale || ''));
+  const righe = [...m.fatture].sort((a, b) => String(a.data).localeCompare(String(b.data))).map(f => {
+    const numero = String(f.numero || '').replace(/^0+/, '');
+    const suoi = numero && assegni ? assegni.filter(x => !x.pagato && cita(x, numero)) : [];
+    const coperto = suoi.reduce((t, x) => t + (Number(x.importo) || 0), 0) / 100;
+    return { f, numero, suoi, resta: Math.max(0, Math.round((Number(f.aperto) - coperto) * 100) / 100) };
+  });
+  const blocchi = righe.map(({ f, numero, suoi, resta }) => {
+    const rate = (Array.isArray(f.rate) ? f.rate : []).filter(r => r?.data).sort((a, b) => a.data.localeCompare(b.data));
+    const stato = !resta ? '<span class="tag tag-saldato">coperta da assegni</span>'
+      : suoi.length ? '<span class="tag tag-warn">da chiudere</span>'
+      : `<span class="tag ${rate.some(r => r.data < oggi) ? 'tag-bad' : 'tag-warn'}">non ancora pagata</span>`;
+    return `<div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+        <div class="card-title">${esc(testoFattura(numero || '?', f.data))}</div>
+        <span class="importo">${esc(euro(f.totale))}</span></div>
+      <div class="card-meta">${[f.tipo, f.nota].filter(Boolean).map(esc).join(' · ')}</div>
+      ${suoi.map(x => `<div class="card-meta" style="display:flex;justify-content:space-between;gap:8px">
+        <span>Assegno n. ${esc(x.numero)} del ${esc(fmtCorta(x.data))}</span><span>− ${esc(euro((Number(x.importo) || 0) / 100))}</span></div>`).join('')}
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <div>${stato}</div>
+        ${resta ? `<b style="color:var(--out)">Da chiudere ${esc(euro(resta))}</b>` : ''}</div>
+      ${resta && !suoi.length && rate.length ? `<div class="card-meta">Scadenze: ${rate.map(r => `${fmtCorta(r.data)} ${euro(r.importo)}`).map(esc).join(' · ')}</div>` : ''}
+    </div>`;
+  });
+  const totale = righe.reduce((t, r) => t + r.resta, 0);
+  return `<p style="margin:0 0 8px">Totale da chiudere: <b style="color:var(--out)">${esc(euro(totale))}</b>${assegni ? '' : ' <span class="muted" style="font-size:12px">(senza contare gli assegni emessi)</span>'}</p>
+    <div style="display:flex;flex-direction:column;gap:8px">${blocchi.join('')}</div>`;
 }
 
 // Assegni emessi da Mirisa: si leggono (solo lettura) dal database dell'app Assegni, che è un progetto
@@ -2921,7 +2964,8 @@ async function abbinaAssegniApp(aid) {
   finally { abbinando.delete(aid); }
 }
 
-async function mostraAssegniAzienda(el, nome) {
+// dopo(lista) riceve gli assegni dell'azienda appena letti (serve a "Fatture da chiudere").
+async function mostraAssegniAzienda(el, nome, dopo) {
   if (!el) return;
   let u;
   try { u = await utenteAssegni(); } catch (e) { el.innerHTML = `<p class="muted" style="margin:0">App Assegni non raggiungibile: ${esc(e.message)}</p>`; return; }
@@ -2937,7 +2981,7 @@ async function mostraAssegniAzienda(el, nome) {
       b.disabled = true;
       try {
         await appAssegni().auth().signInWithEmailAndPassword(f.email.value.trim(), f.password.value);
-        mostraAssegniAzienda(el, nome);
+        mostraAssegniAzienda(el, nome, dopo);
       } catch (err) {
         b.disabled = false;
         toast(/invalid|wrong|not-found|credential/i.test(err.code || err.message) ? 'Email o password sbagliate' : 'Accesso non riuscito: ' + err.message);
@@ -2951,7 +2995,7 @@ async function mostraAssegniAzienda(el, nome) {
   catch (e) {
     el.innerHTML = `<p class="muted" style="margin:0">${/permission/i.test(e.message) ? 'Questo account non può leggere gli assegni.' : 'Assegni non disponibili: ' + esc(e.message)}</p>
       <button type="button" class="btn btn-ghost" data-esci-assegni>Esci dall'app Assegni</button>`;
-    el.querySelector('[data-esci-assegni]').addEventListener('click', () => appAssegni().auth().signOut().then(() => mostraAssegniAzienda(el, nome)));
+    el.querySelector('[data-esci-assegni]').addEventListener('click', () => appAssegni().auth().signOut().then(() => mostraAssegniAzienda(el, nome, dopo)));
     return;
   }
   const daScadere = lista.filter(x => x.data >= oggi).sort((a, b) => a.data.localeCompare(b.data));
@@ -2967,6 +3011,7 @@ async function mostraAssegniAzienda(el, nome) {
     ? `${daPagare.length ? `<p style="margin:0">Ancora da pagare: <b style="color:var(--out)">${esc(euro(tot(daPagare)))}</b> (${plurale(daPagare.length, 'assegno', 'assegni')})</p>` : ''}
        ${gruppo('Da scadere', daScadere)}${gruppo('Scaduti negli ultimi 12 mesi', scaduti)}`
     : `<p class="muted" style="margin:0">Nessun assegno a ${esc(nome)} negli ultimi 12 mesi né da scadere (cercato: "${esc(parolaAzienda(nome))}").</p>`;
+  if (dopo) dopo(lista);
 }
 
 function openDettaglio(aid) {
@@ -3576,7 +3621,20 @@ setInterval(() => {
   // la linea "ora" dell'agenda avanza col tempo
   if (S.user && S.vista === 'agenda' && S.giorno === todayISO() && !livelli.length) render();
 }, 60000);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { controllaPromemoria(); if (S.user && ['agenda', 'calendario'].includes(S.vista)) render(); } });
+// Riaprendo l'app dopo qualche minuto si riparte dall'agenda di oggi, libera: il telefono la tiene in memoria
+// e altrimenti si ritroverebbe l'ultimo appuntamento aperto. Restano aperte solo le schermate in cui si stava scrivendo.
+let nascostaDa = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { nascostaDa = Date.now(); return; }
+  controllaPromemoria();
+  if (!S.user) return;
+  if (nascostaDa && Date.now() - nascostaDa > 3 * 60000 && !livelli.some(l => l.scritto)) {
+    while (livelli.length) closeModal();
+    S.giorno = todayISO();
+    if (S.vista !== 'agenda') { vaiA('agenda'); return; }
+    render();
+  } else if (['agenda', 'calendario'].includes(S.vista)) render();
+});
 
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch(() => { /* l'app funziona anche senza */ });
