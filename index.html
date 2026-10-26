@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.14.0';
+const APP_VERSION = '2.15.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1632,7 +1632,13 @@ function renderAgenda() {
   const kicker = (sel === oggi ? 'Oggi · ' : sel === isoOf(addDays(new Date(), 1)) ? 'Domani · ' : sel === isoOf(addDays(new Date(), -1)) ? 'Ieri · ' : '') + fmt(sel, { weekday: 'long' });
   const titolo = fmt(sel, { day: 'numeric', month: 'long' }) + (selD.getFullYear() !== new Date().getFullYear() ? ' ' + selD.getFullYear() : '');
 
-  const items = appDelGiorno(sel);
+  // I completati si raccolgono in una riga chiusa, così la giornata resta libera (si aprono toccandola).
+  const delGiorno = appDelGiorno(sel);
+  const completati = delGiorno.filter(a => a.stato === 'completato');
+  const items = S.vediCompletati ? delGiorno : delGiorno.filter(a => a.stato !== 'completato');
+  const rigaCompletati = completati.length
+    ? `<button type="button" class="btn btn-ghost" data-act="vediCompletati" style="align-self:flex-start" aria-expanded="${!!S.vediCompletati}">${icon('check', 16)} ${plurale(completati.length, 'completato', 'completati')} · ${S.vediCompletati ? 'nascondi' : 'mostra'}</button>`
+    : '';
   const anima = S.animaGiorno;
   S.animaGiorno = false;
   const attivi = items.filter(a => a.stato !== 'annullato');
@@ -1697,7 +1703,7 @@ function renderAgenda() {
     </div>
     <div class="summary">${summary}</div>
     ${pilloleTotali(totaliAperti(attivi))}
-    <div class="${anima ? 'entra-giorno' : ''}" style="display:flex;flex-direction:column;gap:16px">${corpo}</div>
+    <div class="${anima ? 'entra-giorno' : ''}" style="display:flex;flex-direction:column;gap:16px">${corpo}${rigaCompletati}</div>
   </div>`;
 }
 
@@ -3473,6 +3479,7 @@ const ACTIONS = {
   // agenda
   modoAgenda: d => { S.modoAgenda = d.m; lsSet('modo_agenda', d.m); render(); },
   giorno: d => { if (S.giorno !== d.d) S.animaGiorno = true; S.giorno = d.d; render(); },
+  vediCompletati: () => { S.vediCompletati = !S.vediCompletati; render(); },
   settimana: d => { S.animaGiorno = true; S.giorno = isoOf(addDays(isoToDate(S.giorno || todayISO()), Number(d.k))); render(); },
   vaiOggi: () => { S.animaGiorno = true; S.giorno = todayISO(); render(); },
   // calendario
