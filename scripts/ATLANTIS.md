@@ -66,5 +66,13 @@ diversa da `aperto`, scrivilo in `nota` (es. "in Atlantis le scadenze aperte som
 vengono modificate a mano e non tornano con la fattura. L'app abbina gli assegni emessi che citano il
 numero della fattura nella causale e mostra quanto resta da chiudere.
 
+## Controllo di ogni ora (8-20)
+
+Un secondo controllo gira ogni ora dalle 8 alle 20 per gli appuntamenti appena creati o modificati:
+`node scripts/atlantis-sync.mjs nuovi` elenca solo i contatti con appuntamenti futuri (prossimi 60 giorni)
+creati o modificati dopo l'ultimo aggiornamento Atlantis del contatto. Se stampa `[]` non c'è niente da fare:
+fermati subito. Altrimenti segui i passi 2-4 qui sopra solo per quei contatti. `scrivi` aggiorna la data
+`aggiornato`, quindi al giro successivo gli stessi contatti non ricompaiono.
+
 Ometti `cliente` o `fornitore` se il soggetto non ha quel ruolo. `prossime`: al massimo 6 scadenze,
 prima le scadute e poi le più vicine. Non inserire dati di Atlantis nel repository né nei log condivisi.

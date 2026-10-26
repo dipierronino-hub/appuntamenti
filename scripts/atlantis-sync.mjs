@@ -4,6 +4,7 @@
 // legge gli appuntamenti e scrive il riepilogo nei contatti (users/<uid>/contatti/<id>/atlantis).
 //
 //   node scripts/atlantis-sync.mjs elenco [giorni]   contatti con appuntamenti nei prossimi giorni + tutti i rappresentanti (JSON)
+//   node scripts/atlantis-sync.mjs nuovi [giorni]    solo i contatti con appuntamenti nuovi o modificati dall'ultimo aggiornamento (JSON)
 //   node scripts/atlantis-sync.mjs scrivi <file>     scrive i riepiloghi preparati in <file> (JSON)
 //
 // Serve la variabile d'ambiente FIREBASE_DB_SECRET (Secret del database di Firebase).
@@ -38,7 +39,9 @@ const isoOggi = (k = 0) => {
   return d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
 };
 
-function elenco(giorni) {
+// soloNuovi: solo i contatti con appuntamenti futuri creati o modificati dopo l'ultimo aggiornamento Atlantis
+// (o mai aggiornati). Lo usa il controllo di ogni ora: se l'elenco è vuoto non c'è niente da fare.
+function elenco(giorni, soloNuovi = false) {
   const utenti = richiesta('GET', 'users') || {};
   const da = isoOggi(0), a = isoOggi(giorni);
   const out = [];
@@ -47,11 +50,15 @@ function elenco(giorni) {
     const perContatto = {};
     for (const [aid, app] of Object.entries(u.appuntamenti || {})) {
       if (!app || app.stato === 'annullato' || app.data < da || app.data > a) continue;
+      if (soloNuovi) {
+        const visto = Date.parse(contatti[app.contattoId]?.atlantis?.aggiornato || '') || 0;
+        if (Math.max(Number(app.creato) || 0, Number(app.aggiornato) || 0) <= visto) continue;
+      }
       (perContatto[app.contattoId] ||= []).push({ aid, data: app.data, ora: app.ora, motivo: app.motivo || '', azienda: app.azienda || '' });
     }
     // I rappresentanti ci sono sempre, anche senza appuntamenti: nell'app si tocca un'azienda
     // rappresentata e si vede la sua situazione, che quindi va aggiornata ogni mattina.
-    for (const [cid, c] of Object.entries(contatti)) {
+    for (const [cid, c] of Object.entries(soloNuovi ? {} : contatti)) {
       if (c?.tipo === 'rappresentante' && Array.isArray(c.mandanti) && c.mandanti.some(Boolean)) perContatto[cid] ||= [];
     }
     for (const [cid, apps] of Object.entries(perContatto)) {
@@ -130,5 +137,6 @@ function scrivi(file) {
 const [cmd, arg] = process.argv.slice(2);
 if (!SECRET && cmd) esci('Manca FIREBASE_DB_SECRET nelle variabili dell\'ambiente');
 if (cmd === 'elenco') elenco(Number(arg) || 7);
+else if (cmd === 'nuovi') elenco(Number(arg) || 60, true);
 else if (cmd === 'scrivi' && arg) scrivi(arg);
-else esci('Uso: node scripts/atlantis-sync.mjs elenco [giorni] | scrivi <file.json>');
+else esci('Uso: node scripts/atlantis-sync.mjs elenco [giorni] | nuovi [giorni] | scrivi <file.json>');
