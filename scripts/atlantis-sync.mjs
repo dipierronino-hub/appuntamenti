@@ -91,6 +91,17 @@ function soggetto(at) {
       fattura: String(x.fattura || '').slice(0, 30),
       dataFattura: String(x.dataFattura || '').slice(0, 10),
       tipo: String(x.tipo || '').slice(0, 40)
+    })),
+    // Fatture con scadenze aperte: l'app toglie gli assegni emessi e mostra quanto resta da chiudere.
+    fatture: (Array.isArray(at.fatture) ? at.fatture : []).slice(0, 20).map(f => ({
+      numero: String(f.numero || '').replace(/^0+/, '').slice(0, 30),
+      data: String(f.data || '').slice(0, 10),
+      ruolo: f.ruolo === 'cliente' ? 'cliente' : 'fornitore',
+      totale: num(f.totale),
+      aperto: num(f.aperto),
+      tipo: String(f.tipo || '').slice(0, 40),
+      nota: String(f.nota || '').slice(0, 120),
+      rate: (Array.isArray(f.rate) ? f.rate : []).slice(0, 12).map(r => ({ data: String(r.data || '').slice(0, 10), importo: num(r.importo) }))
     }))
   };
 }

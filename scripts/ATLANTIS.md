@@ -51,5 +51,20 @@ Per ogni scadenza in `prossime`: `data` = PAC_DTSCAD, `fattura` = PA_SERIEDOC/PA
 `dataFattura` = PA_DATDOC (le date di Atlantis sono millisecondi: convertile in AAAA-MM-GG con fuso Europe/Rome),
 `tipo` = PG_DESCR in minuscolo con l'iniziale maiuscola, `rif` = eventuale "rata N/M" o "a nostro favore".
 
+Solo per le aziende dei rappresentanti (`mandanti`), aggiungi anche `fatture`: una voce per ogni fattura
+con scadenze aperte come fornitore (raggruppa le righe di `scadenze_aperte` per PA_CODICE), al massimo 20:
+
+```json
+"fatture": [{ "numero": "1044", "data": "2026-06-30", "ruolo": "fornitore", "totale": 7905.6,
+              "aperto": 7905.6, "tipo": "Rimessa diretta", "nota": "", "rate": [{ "data": "2026-10-31", "importo": 3952.8 }] }]
+```
+
+`numero` = PA_NUMDOC senza zeri iniziali, `data` = PA_DATDOC, `totale` = PA_TOTDOC, `rate` = le righe aperte
+(PAC_DTSCAD, importo). `aperto` = `totale` meno i pagamenti registrati per quella fattura nel `mastrino` del fornitore
+(movimenti in dare che citano il numero nelle note, es. "ADD.BONIF.FT. N. 231"). Se la somma delle righe aperte è
+diversa da `aperto`, scrivilo in `nota` (es. "in Atlantis le scadenze aperte sommano 7.458,40"): le righe a volte
+vengono modificate a mano e non tornano con la fattura. L'app abbina gli assegni emessi che citano il
+numero della fattura nella causale e mostra quanto resta da chiudere.
+
 Ometti `cliente` o `fornitore` se il soggetto non ha quel ruolo. `prossime`: al massimo 6 scadenze,
 prima le scadute e poi le più vicine. Non inserire dati di Atlantis nel repository né nei log condivisi.
