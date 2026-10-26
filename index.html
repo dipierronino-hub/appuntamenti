@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.12.0';
+const APP_VERSION = '2.13.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1120,7 +1120,7 @@ async function salvaPagamento(aid, v, rate) {
   return esegui(userRef('appuntamenti/' + aid).update({
     importo, movimento: v.movimento === 'uscita' ? 'uscita' : 'entrata', pagamento, acconto, modalita, fattura, dataFattura,
     assegno: !rate && modalita === 'assegno' ? pulisciAssegno(v.assegno) : null,
-    rate: rate ? rate.map(x => ({ data: x.data, importo: x.importo, modalita: x.modalita || '', pagata: !!x.pagata, ...(x.assegno ? { assegno: pulisciAssegno(x.assegno) } : {}) })) : null,
+    rate: rate ? rate.map(x => ({ data: x.data, importo: x.importo, modalita: x.modalita || '', pagata: !!x.pagata, ...(x.assegno ? { assegno: pulisciAssegno(x.assegno) } : {}), ...(x.inAssegni ? { inAssegni: true } : {}) })) : null,
     storico, aggiornato: Date.now()
   }), 'Pagamento aggiornato');
 }
@@ -2754,6 +2754,7 @@ function etichettaVoce(v) {
     case 'email': t = `Email inviata: ${v.oggetto}`; break;
     case 'conferma': t = `Conferma ricevuta da ${v.da}`; break;
     case 'pagamento': t = `Pagamento: ${PAGAMENTI[v.da] || v.da} → ${PAGAMENTI[v.a] || v.a}`; break;
+    case 'assegni': t = `Rate aggiornate con ${plurale(v.n, 'assegno emesso', 'assegni emessi')} nell’app Assegni`; break;
     default: t = v.tipo;
   }
   return quando ? `${quando} — ${t}` : t;
@@ -2821,8 +2822,11 @@ function soggettoAtlantis(at, quante = 4) {
 
 // Situazione contabile di un'azienda rappresentata (dati Atlantis scritti ogni mattina dalla routine).
 function mandanteAtlantis(c, nome) {
-  const k = norm(nome);
-  return (Array.isArray(c?.atlantis?.mandanti) ? c.atlantis.mandanti : []).find(x => norm(x.azienda) === k || norm(x.ragione) === k) || null;
+  const k = norm(nome), p = parolaAzienda(nome);
+  const tutti = [...(Array.isArray(c?.atlantis?.mandanti) ? c.atlantis.mandanti : []), ...(c?.atlantis?.codice ? [c.atlantis] : [])];
+  // prima il nome esatto, poi la parola che distingue l'azienda ("Grossi Ceramiche" → GROSSI CERAMICHE DI GROSSI GIUSEPPE)
+  return tutti.find(x => norm(x.azienda) === k || norm(x.ragione) === k)
+    || tutti.find(x => p && [x.azienda, x.ragione].some(t => parolaAzienda(t) === p)) || null;
 }
 function openAzienda(cid, nome) {
   const c = S.contatti[cid] || {};
@@ -2870,6 +2874,51 @@ function assegnoDiAzienda(x, nome) {
   const n = norm(String(nome || '').replace(/\./g, '')).replace(FORME_SOCIETA, ' ').replace(/\s+/g, ' ').trim();
   const p = parolaAzienda(nome);
   return !!b && (b === n || (!!p && b.split(' ').includes(p)));
+}
+
+// Pagamento in uscita a un'azienda rappresentata: se gli assegni emessi nell'app Assegni (non pagati e non già
+// abbinati a un altro appuntamento) fanno esattamente quanto resta da pagare, diventano le rate dell'appuntamento.
+const abbinando = new Set();
+async function abbinaAssegniApp(aid) {
+  const a = S.appuntamenti[aid], c = S.contatti[a?.contattoId];
+  if (!a || !c || abbinando.has(aid) || tipoDi(c) !== 'rappresentante' || movimentoDi(a) !== 'uscita' || !a.azienda || a.stato === 'annullato') return;
+  const rate = rateDi(a), giaAbbinate = rate.some(x => x.inAssegni);
+  if (!giaAbbinate && !residuo(a)) return;
+  abbinando.add(aid);
+  try {
+    if (!(await utenteAssegni())) return;
+    const chiave = x => norm(x.banca) + '|' + String(x.numero).trim();
+    // Rate già abbinate: quando nell'app Assegni l'assegno risulta pagato, la rata diventa pagata (e viceversa).
+    if (giaAbbinate) {
+      const per = new Map((await leggiAssegni(isoOf(addDays(new Date(), -365)))).map(x => [chiave(x), x]));
+      let cambiate = 0;
+      const nuove = rate.map(r => {
+        const x = r.inAssegni && r.assegno?.numero ? per.get(chiave(r.assegno)) : null;
+        if (!x || !!x.pagato === !!r.pagata) return r;
+        cambiate++;
+        return { ...r, pagata: !!x.pagato };
+      });
+      if (cambiate) await esegui(userRef('appuntamenti/' + aid).update({ rate: nuove, ...statoDaRate(nuove), aggiornato: Date.now() }),
+        `${plurale(cambiate, 'rata aggiornata', 'rate aggiornate')} dall’app Assegni`);
+      return;
+    }
+    const usati = new Set(Object.entries(S.appuntamenti).filter(([id]) => id !== aid)
+      .flatMap(([, x]) => rateDi(x).filter(r => r.inAssegni && r.assegno?.numero).map(r => chiave(r.assegno))));
+    const cand = (await leggiAssegni(isoOf(addDays(new Date(), -365))))
+      .filter(x => !x.pagato && assegnoDiAzienda(x, a.azienda) && !usati.has(chiave(x)))
+      .sort((x, y) => x.data.localeCompare(y.data));
+    const tot = Math.round(cand.reduce((t, x) => t + (Number(x.importo) || 0), 0)) / 100;
+    if (!cand.length || Math.abs(tot - residuo(a)) > 0.009) return;
+    const pagate = rate.filter(x => x.pagata);
+    if (!rate.length && statoPag(a) === 'acconto' && Number(a.acconto) > 0) pagate.push({ data: a.data, importo: Number(a.acconto), modalita: a.modalita || '', pagata: true });
+    const nuove = [...pagate, ...cand.map(x => ({ data: x.data, importo: (Number(x.importo) || 0) / 100, modalita: 'assegno', pagata: false, inAssegni: true,
+      assegno: pulisciAssegno({ numero: x.numero, banca: x.banca, data: x.data }) }))];
+    const storico = storicoOf(a);
+    storico.push({ tipo: 'assegni', n: cand.length, quando: new Date().toISOString() });
+    await esegui(userRef('appuntamenti/' + aid).update({ rate: nuove, modalita: 'assegno', assegno: null, ...statoDaRate(nuove), storico, aggiornato: Date.now() }),
+      `Rate aggiornate con ${plurale(cand.length, 'assegno emesso', 'assegni emessi')}`);
+  } catch (e) { /* senza accesso o rete gli assegni si abbinano alla prossima apertura */ }
+  finally { abbinando.delete(aid); }
 }
 
 async function mostraAssegniAzienda(el, nome) {
@@ -2969,7 +3018,7 @@ function openDettaglio(aid) {
         ${rateDi(a).length ? `<div class="lista-righe">${rateDi(a).map((x, i, tutte) => `<div class="riga">
             <div class="testo"><div style="font-weight:600">Rata ${i + 1} di ${tutte.length} · ${esc(fmtCorta(x.data))}${!x.pagata && x.data < todayISO() ? ' <span class="tag tag-bad">scaduta</span>' : ''}</div>
               <div class="card-meta">${esc(euro(x.importo))}${MODALITA[x.modalita] ? ' · ' + esc(MODALITA[x.modalita]) : ''}${x.modalita === 'assegno' && testoAssegno(x.assegno) ? ' ' + esc(testoAssegno(x.assegno).replace(/^Assegno /, '')) : ''}</div>
-              ${movimentoDi(a) === 'uscita' && x.modalita === 'assegno' ? bottoneAssegni(linkAssegni(a, c, x, i, tutte.length)) : ''}</div>
+              ${movimentoDi(a) === 'uscita' && x.modalita === 'assegno' ? (x.inAssegni ? '<div class="card-meta">Registrato nell’app Assegni</div>' : bottoneAssegni(linkAssegni(a, c, x, i, tutte.length))) : ''}</div>
             <button type="button" class="btn btn-secondary rata-pagata" data-act="rata" data-id="${esc(aid)}" data-i="${i}" aria-pressed="${!!x.pagata}">${icon('check', 15)} ${x.pagata ? (movimentoDi(a) === 'uscita' ? 'Pagata' : 'Incassata') : 'Da saldare'}</button>
           </div>`).join('')}</div>`
           : `<div class="seg seg-pay" data-mov="${movimentoDi(a)}">${Object.keys(PAGAMENTI).map(k => `<button type="button" data-act="pagamento" data-id="${esc(aid)}" data-p="${k}" aria-pressed="${statoPag(a) === k}">${etichettaPag(a, k)}</button>`).join('')}</div>`}
@@ -3025,6 +3074,7 @@ function openDettaglio(aid) {
         ${storico.length ? `<ul class="storico">${storico.map(v => `<li>${esc(etichettaVoce(v))}</li>`).join('')}</ul>` : '<p class="muted" style="margin:0">Nessuna voce.</p>'}</div>
     </div>`;
     caricaConferme(aid);
+    abbinaAssegniApp(aid);
   };
   openPage('', disegna, { refresh: disegna });
 }
