@@ -402,7 +402,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 .mandante>.input{flex:1;min-width:0}
 .mandante>button{flex:none;width:var(--tap);height:var(--tap)}
 .chips-mandanti{display:flex;flex-wrap:wrap;gap:6px}
-.chips-mandanti>a{display:inline-flex;align-items:center;gap:4px;text-decoration:none;--tt:var(--t-rap);font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;color:var(--color-text);background:color-mix(in srgb,var(--tt) 14%,transparent);border:1px solid color-mix(in srgb,var(--tt) 30%,transparent);overflow-wrap:anywhere}
+.chips-mandanti>button{display:inline-flex;align-items:center;gap:4px;font-family:inherit;cursor:pointer;text-align:left;--tt:var(--t-rap);font-size:13px;font-weight:600;padding:6px 12px;border-radius:999px;color:var(--color-text);background:color-mix(in srgb,var(--tt) 14%,transparent);border:1px solid color-mix(in srgb,var(--tt) 30%,transparent);overflow-wrap:anywhere}
 .seg-mov>button[data-m="uscita"][aria-pressed="true"]{background:linear-gradient(135deg,#ea580c,#fb7185);box-shadow:0 4px 16px rgba(249,115,22,.35)}
 .importo{font-weight:800;font-size:14px;letter-spacing:-.01em;font-variant-numeric:tabular-nums;white-space:nowrap}
 .seg-pay>button[data-p="da-saldare"][aria-pressed="true"]{background:linear-gradient(135deg,#059669,#34d399);box-shadow:0 4px 16px rgba(16,185,129,.35)}
@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.11.0';
+const APP_VERSION = '2.12.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1507,8 +1507,8 @@ function parolaAzienda(nome) {
   const parole = norm(String(nome ?? '').replace(/\./g, '')).replace(FORME_SOCIETA, ' ').split(' ').filter(Boolean);
   return parole.find(x => !PAROLE_GENERICHE.has(x)) || parole[0] || '';
 }
-const linkAssegniAzienda = nome => APP_ASSEGNI + '#cerca?' + new URLSearchParams({ q: parolaAzienda(nome) });
-const chipAzienda = nome => `<a data-act="rapida" href="${esc(linkAssegniAzienda(nome))}" target="_blank" rel="noopener" aria-label="Assegni di ${esc(nome)}">${esc(nome)} ${icon('right', 13)}</a>`;
+// Azienda rappresentata: il tocco apre la sua situazione contabile (openAzienda).
+const chipAzienda = (nome, cid) => `<button type="button" data-act="azienda" data-cid="${esc(cid)}" data-nome="${esc(nome)}" aria-label="Situazione di ${esc(nome)}">${esc(nome)} ${icon('right', 13)}</button>`;
 const bottoneAssegni = href => `<a class="btn btn-ghost btn-assegni" data-act="rapida" href="${esc(href)}" target="_blank" rel="noopener">${icon('right', 15)} Registra in Assegni</a>`;
 const rateDi = a => (Array.isArray(a?.rate) ? a.rate.filter(x => x && validDate(x.data)).map(x => ({ ...x })) : []);
 // Stesso giorno k mesi dopo; se il mese è più corto si usa l'ultimo giorno (31/01 → 28/02).
@@ -2773,7 +2773,7 @@ function azioniContatto(c, appId = '', cid = '', a = null) {
 
 // Situazione del cliente o fornitore nel gestionale Atlantis.
 // I dati (contatti/<id>/atlantis) li scrive ogni mattina l'aggiornamento automatico: l'app li mostra soltanto.
-function sezioneAtlantis(c) {
+function sezioneAtlantis(c, cid) {
   const at = c.atlantis;
   if (!at || typeof at !== 'object') return '';
   const quando = at.aggiornato ? new Date(at.aggiornato).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
@@ -2782,7 +2782,7 @@ function sezioneAtlantis(c) {
   if (mandanti.length) {
     return `<div class="sezione"><h2><span>Situazione Atlantis</span><span style="text-transform:none;letter-spacing:0;font-weight:600">${esc(quando)}</span></h2>
       ${mandanti.map(x => `<div style="display:flex;flex-direction:column;gap:10px">
-        <div class="chips-mandanti">${chipAzienda(x.azienda || x.ragione || '')}</div>${soggettoAtlantis(x)}</div>`).join('')}
+        <div class="chips-mandanti">${chipAzienda(x.azienda || x.ragione || '', cid)}</div>${soggettoAtlantis(x)}</div>`).join('')}
     </div>`;
   }
   if (!at.codice) {
@@ -2795,7 +2795,7 @@ function sezioneAtlantis(c) {
 }
 
 // Riquadro di un soggetto Atlantis: ragione sociale, totali e prossime scadenze.
-function soggettoAtlantis(at) {
+function soggettoAtlantis(at, quante = 4) {
   if (!at.codice) return `<p class="muted" style="margin:0">${esc(at.nota || 'Non trovato in Atlantis')}</p>`;
   const lato = (k, titolo, colore) => {
     const x = at[k];
@@ -2806,7 +2806,7 @@ function soggettoAtlantis(at) {
     </div>`;
   };
   const celle = [lato('cliente', 'Ci deve', 'var(--in)'), lato('fornitore', 'Dobbiamo', 'var(--out)')].filter(Boolean);
-  const prossime = Array.isArray(at.prossime) ? at.prossime.slice(0, 4) : [];
+  const prossime = Array.isArray(at.prossime) ? at.prossime.slice(0, quante) : [];
   return `<div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:2px">
       <div class="card-title" style="overflow-wrap:anywhere">${esc(at.ragione || '')}</div>
       <div class="card-meta">Codice ${esc(at.codice)}${at.nota ? ' · ' + esc(at.nota) : ''}</div>
@@ -2817,6 +2817,107 @@ function soggettoAtlantis(at) {
           <div class="card-meta">${esc([x.ruolo === 'fornitore' ? 'Da pagare' : 'Da incassare', testoFattura(x.fattura, x.dataFattura) || x.rif, x.tipo].filter(Boolean).join(' · '))}</div></div>
         <span class="importo" style="color:${x.ruolo === 'fornitore' ? 'var(--out)' : 'var(--in)'}">${esc(euro(x.importo))}</span>
       </div>`).join('')}</div>` : ''}`;
+}
+
+// Situazione contabile di un'azienda rappresentata (dati Atlantis scritti ogni mattina dalla routine).
+function mandanteAtlantis(c, nome) {
+  const k = norm(nome);
+  return (Array.isArray(c?.atlantis?.mandanti) ? c.atlantis.mandanti : []).find(x => norm(x.azienda) === k || norm(x.ragione) === k) || null;
+}
+function openAzienda(cid, nome) {
+  const c = S.contatti[cid] || {};
+  const m = mandanteAtlantis(c, nome);
+  const quando = c.atlantis?.aggiornato ? new Date(c.atlantis.aggiornato).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  openModal(`
+    <h2 style="overflow-wrap:anywhere">${esc(nome)}</h2>
+    <p class="muted" style="margin:0;font-size:13px">${c.nome ? 'Rappresentante: ' + esc(c.nome) : ''}${quando ? ' · Atlantis aggiornato il ' + esc(quando) : ''}</p>
+    <div class="sezione"><h2>Situazione contabile</h2>
+      ${m ? soggettoAtlantis(m, 6) : '<p class="muted" style="margin:0">Situazione non ancora disponibile: si aggiorna ogni mattina alle 6:40.</p>'}
+    </div>
+    <div class="sezione"><h2>Assegni emessi</h2><div data-assegni><p class="muted" style="margin:0">Carico gli assegni…</p></div></div>
+    <button type="button" class="btn btn-secondary" data-act="chiudi">Chiudi</button>`, box => mostraAssegniAzienda(box.querySelector('[data-assegni]'), nome));
+}
+
+// Assegni emessi da Mirisa: si leggono (solo lettura) dal database dell'app Assegni, che è un progetto
+// Firebase separato con un suo accesso (email e password dell'app Assegni), da fare una volta sola.
+const ASSEGNI_CONFIG = {
+  apiKey: 'AIzaSyBHUnbZ2eU1LuF8hqSHtaWxHQ3SHKngZWQ',
+  authDomain: 'assegni-mirisa.firebaseapp.com',
+  databaseURL: 'https://assegni-mirisa-default-rtdb.europe-west1.firebasedatabase.app',
+  projectId: 'assegni-mirisa',
+  appId: '1:1040059014566:web:1cabf5b40c2f9c9608c367'
+};
+let fbAssegni = null, cacheAssegni = null;
+function appAssegni() {
+  if (!fbAssegni) fbAssegni = firebase.initializeApp(ASSEGNI_CONFIG, 'assegni');
+  return fbAssegni;
+}
+// Primo stato dell'accesso all'app Assegni (null = non entrato).
+const utenteAssegni = () => new Promise(ok => { const stop = appAssegni().auth().onAuthStateChanged(u => { stop(); ok(u); }); });
+
+// Assegni dal giorno indicato in poi (l'indice su "data" c'è nelle regole); tenuti 2 minuti per non rileggerli a ogni tocco.
+async function leggiAssegni(da) {
+  if (cacheAssegni && cacheAssegni.da === da && Date.now() - cacheAssegni.t < 120000) return cacheAssegni.lista;
+  const snap = await appAssegni().database().ref('assegni').orderByChild('data').startAt(da).once('value');
+  const lista = Object.values(snap.val() || {}).filter(x => x && !x.annullato);
+  cacheAssegni = { da, t: Date.now(), lista };
+  return lista;
+}
+
+// Un assegno è dell'azienda se il beneficiario contiene la parola che la distingue ("atlas") o coincide col nome.
+function assegnoDiAzienda(x, nome) {
+  const b = norm(String(x.beneficiario || '').replace(/\./g, '')).replace(FORME_SOCIETA, ' ').replace(/\s+/g, ' ').trim();
+  const n = norm(String(nome || '').replace(/\./g, '')).replace(FORME_SOCIETA, ' ').replace(/\s+/g, ' ').trim();
+  const p = parolaAzienda(nome);
+  return !!b && (b === n || (!!p && b.split(' ').includes(p)));
+}
+
+async function mostraAssegniAzienda(el, nome) {
+  if (!el) return;
+  let u;
+  try { u = await utenteAssegni(); } catch (e) { el.innerHTML = `<p class="muted" style="margin:0">App Assegni non raggiungibile: ${esc(e.message)}</p>`; return; }
+  if (!u) {
+    el.innerHTML = `<form class="form-assegni" style="display:flex;flex-direction:column;gap:10px">
+      <p class="muted" style="margin:0;font-size:13px">Per vedere gli assegni entra una volta con email e password dell'app Assegni. Appuntamenti li legge soltanto, non li modifica.</p>
+      <label class="field"><span>Email</span><input class="input" name="email" type="email" autocomplete="username" required></label>
+      <label class="field"><span>Password</span><input class="input" name="password" type="password" autocomplete="current-password" required></label>
+      <button class="btn btn-primary" type="submit">Entra</button></form>`;
+    el.querySelector('form').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.target, b = f.querySelector('button');
+      b.disabled = true;
+      try {
+        await appAssegni().auth().signInWithEmailAndPassword(f.email.value.trim(), f.password.value);
+        mostraAssegniAzienda(el, nome);
+      } catch (err) {
+        b.disabled = false;
+        toast(/invalid|wrong|not-found|credential/i.test(err.code || err.message) ? 'Email o password sbagliate' : 'Accesso non riuscito: ' + err.message);
+      }
+    });
+    return;
+  }
+  const oggi = todayISO(), da = isoOf(addDays(new Date(), -365));
+  let lista;
+  try { lista = (await leggiAssegni(da)).filter(x => assegnoDiAzienda(x, nome)); }
+  catch (e) {
+    el.innerHTML = `<p class="muted" style="margin:0">${/permission/i.test(e.message) ? 'Questo account non può leggere gli assegni.' : 'Assegni non disponibili: ' + esc(e.message)}</p>
+      <button type="button" class="btn btn-ghost" data-esci-assegni>Esci dall'app Assegni</button>`;
+    el.querySelector('[data-esci-assegni]').addEventListener('click', () => appAssegni().auth().signOut().then(() => mostraAssegniAzienda(el, nome)));
+    return;
+  }
+  const daScadere = lista.filter(x => x.data >= oggi).sort((a, b) => a.data.localeCompare(b.data));
+  const scaduti = lista.filter(x => x.data < oggi).sort((a, b) => b.data.localeCompare(a.data));
+  const tot = l => l.reduce((t, x) => t + (Number(x.importo) || 0), 0) / 100;
+  const daPagare = lista.filter(x => !x.pagato);
+  const riga = x => `<div class="riga">
+      <div class="testo"><div style="font-weight:600">${esc(fmtCorta(x.data))} ${x.pagato ? '<span class="tag tag-saldato">pagato</span>' : x.data < oggi ? '<span class="tag tag-bad">non pagato</span>' : ''}</div>
+        <div class="card-meta">${esc(['n. ' + x.numero, x.banca, x.causale].filter(Boolean).join(' · '))}</div></div>
+      <span class="importo" style="color:var(--out)">${esc(euro((Number(x.importo) || 0) / 100))}</span></div>`;
+  const gruppo = (titolo, l) => l.length ? `<div class="cella-k" style="margin-top:4px">${titolo} · ${l.length} · ${esc(euro(tot(l)))}</div><div class="lista-righe">${l.map(riga).join('')}</div>` : '';
+  el.innerHTML = lista.length
+    ? `${daPagare.length ? `<p style="margin:0">Ancora da pagare: <b style="color:var(--out)">${esc(euro(tot(daPagare)))}</b> (${plurale(daPagare.length, 'assegno', 'assegni')})</p>` : ''}
+       ${gruppo('Da scadere', daScadere)}${gruppo('Scaduti negli ultimi 12 mesi', scaduti)}`
+    : `<p class="muted" style="margin:0">Nessun assegno a ${esc(nome)} negli ultimi 12 mesi né da scadere (cercato: "${esc(parolaAzienda(nome))}").</p>`;
 }
 
 function openDettaglio(aid) {
@@ -2845,7 +2946,7 @@ function openDettaglio(aid) {
           ${a.rinvii ? `<span class="tag tag-warn">rimandato ${esc(a.rinvii)}×</span>` : ''}
           ${inRitardo ? '<span class="tag tag-bad">in ritardo</span>' : ''}
         </div>
-        ${a.azienda ? (tipoDi(c) === 'rappresentante' ? `<div class="chips-mandanti">${chipAzienda(a.azienda)}</div>` : `<div class="card-kicker" style="font-size:11px">${esc(a.azienda)}</div>`) : ''}
+        ${a.azienda ? (tipoDi(c) === 'rappresentante' ? `<div class="chips-mandanti">${chipAzienda(a.azienda, a.contattoId)}</div>` : `<div class="card-kicker" style="font-size:11px">${esc(a.azienda)}</div>`) : ''}
         <h1 style="font-size:34px;overflow-wrap:anywhere;text-decoration:${a.stato === 'annullato' ? 'line-through' : 'none'}">${esc(a.motivo || c.nome || 'Appuntamento')}</h1>
       </div>
 
@@ -2885,7 +2986,7 @@ function openDettaglio(aid) {
         </div>
         ${azioniContatto(c, aid, a.contattoId, a)}
       </div>
-      ${sezioneAtlantis(c)}
+      ${sezioneAtlantis(c, a.contattoId)}
 
       ${a.luogo ? `<div class="sezione"><h2>Luogo</h2>
         <a class="blueprint" data-act="rapida" href="${esc(linkNavigazione(a.luogo))}" target="_blank" rel="noopener" style="padding:12px 14px;display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--color-text)">${CORNERS}
@@ -2946,8 +3047,8 @@ function openContatto(cid) {
           <h1 style="font-size:32px;overflow-wrap:anywhere">${esc(c.nome)}</h1></div>
       </div>
       ${azioniContatto(c, '', cid)}
-      ${mandantiDi(c).length ? `<div class="sezione"><h2>Aziende rappresentate · ${mandantiDi(c).length}</h2><div class="chips-mandanti">${mandantiDi(c).map(chipAzienda).join('')}</div><p class="muted" style="margin:8px 0 0;font-size:12px">Tocca un'azienda per vedere i suoi assegni.</p></div>` : ''}
-      ${sezioneAtlantis(c)}
+      ${mandantiDi(c).length ? `<div class="sezione"><h2>Aziende rappresentate · ${mandantiDi(c).length}</h2><div class="chips-mandanti">${mandantiDi(c).map(x => chipAzienda(x, cid)).join('')}</div><p class="muted" style="margin:8px 0 0;font-size:12px">Tocca un'azienda per vedere la sua situazione.</p></div>` : ''}
+      ${sezioneAtlantis(c, cid)}
       <div class="griglia verticale">
         <div><div class="cella-k">Telefono</div><div style="font-size:16px">${c.telefono ? `<a href="tel:${esc(c.telefono)}">${esc(c.telefono)}</a>` : '—'}</div></div>
         <div><div class="cella-k">Email</div><div style="font-size:16px;overflow-wrap:anywhere">${c.email ? esc(c.email) : '—'}</div></div>
@@ -3261,6 +3362,7 @@ const ACTIONS = {
   chiudi: () => closeModal(),
   noop: () => {},
   rapida: () => {},
+  azienda: d => openAzienda(d.cid, d.nome),
   pagamento: d => cambiaPagamento(d.id, d.p).then(() => aggiornaLivello()),
   vibrazione: d => { if (d.v === 'off') lsSet('vibrazione', 'off'); else { lsDel('vibrazione'); vibra('ok'); } render(); },
   nuovoContatto: () => openContattoForm({ tipo: S.tipoC }),

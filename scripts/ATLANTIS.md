@@ -4,7 +4,9 @@ Procedura che la routine del mattino esegue (connettore Atlantis Evo, sola lettu
 Serve `FIREBASE_DB_SECRET` nell'ambiente e l'accesso di rete a
 `appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app`.
 
-1. `node scripts/atlantis-sync.mjs elenco 7` → contatti con appuntamenti nei prossimi 7 giorni.
+1. `node scripts/atlantis-sync.mjs elenco 7` → contatti con appuntamenti nei prossimi 7 giorni e **tutti i
+   rappresentanti** (anche senza appuntamenti, con `appuntamenti: []`): nell'app si tocca un'azienda
+   rappresentata e si vede la sua situazione, quindi va aggiornata ogni mattina.
 2. Per ogni contatto trova il soggetto in Atlantis con `cerca_soggetti`:
    - se `codiceAttuale` è presente, riusa quel codice;
    - altrimenti cerca per ognuna delle `aziende`, poi per telefono, email e nome;
@@ -39,7 +41,7 @@ Per un rappresentante:
 
 ```json
 [{ "uid": "...", "cid": "...", "atlantis": { "mandanti": [
-  { "azienda": "Nome scritto nell'app", "codice": "0001234", "ragione": "RAGIONE SOCIALE", "nota": "",
+  { "azienda": "Nome scritto nell'app (copialo da mandanti, l'app abbina per nome)", "codice": "0001234", "ragione": "RAGIONE SOCIALE", "nota": "",
     "fornitore": { "aperto": 5000, "scaduto": 0, "n": 2 }, "prossime": [] },
   { "azienda": "Altra azienda", "nota": "Non trovato in Atlantis" }
 ]}}]
