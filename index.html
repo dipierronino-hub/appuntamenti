@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.17.0';
+const APP_VERSION = '2.17.1';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1711,7 +1711,6 @@ function renderAgenda() {
     </div>
     <div class="summary">${summary}</div>
     ${pilloleTotali(totaliAperti(attivi))}
-    ${sel === oggi ? riquadroSenzaAssegno() : ''}
     <div class="${anima ? 'entra-giorno' : ''}" style="display:flex;flex-direction:column;gap:16px">${corpo}${rigaCompletati}</div>
   </div>`;
 }
@@ -2346,6 +2345,7 @@ function openAppForm(opt = {}) {
             <label class="field"><span>Email</span><input class="input" name="email" type="email" value="${esc(v.email)}"></label>
           </div>
           <p class="muted" style="margin:0">Modificare nome, telefono o email aggiorna anche la scheda del contatto.</p>
+          <div id="senzaAssegnoForm"></div>
         </div>
 
         <div class="sezione">
@@ -2397,7 +2397,10 @@ function openAppForm(opt = {}) {
       else if (t === 'cliente') segnaMovimento('entrata');
     });
     collegaNome(f, id => { f.contattoId.value = id; f.contattoId.dispatchEvent(new Event('change')); });
+    const segnaSenzaAssegno = () => { m.querySelector('#senzaAssegnoForm').innerHTML = riquadroSenzaAssegno(f.contattoId.value); };
+    segnaSenzaAssegno();
     f.contattoId.addEventListener('change', () => {
+      segnaSenzaAssegno();
       const k = S.contatti[f.contattoId.value];
       if (!k) return;
       f.nome.value = k.nome || '';
@@ -2846,9 +2849,10 @@ function senzaAssegno(f, coperte) {
   return f && f.ruolo !== 'cliente' && /rimessa/i.test(f.tipo || '') && !ASSEGNO_IN_NOTA.test(f.nota || '')
     && !coperte.has(numFatt(f.numero)) && Number(f.aperto) > 0;
 }
-function scadenzeSenzaAssegno() {
+function scadenzeSenzaAssegno(soloCid) {
   const out = [];
   for (const [cid, c] of Object.entries(S.contatti || {})) {
+    if (soloCid && cid !== soloCid) continue;
     for (const m of (Array.isArray(c?.atlantis?.mandanti) ? c.atlantis.mandanti : [])) {
       if (!haFatture(m)) continue;
       const coperte = fattureCoperte(cid, c, m);
@@ -2868,24 +2872,17 @@ function rigaSenzaAssegno(x) {
     <span class="importo" style="color:var(--out)">${esc(euro(x.aperto))}</span>
   </div>`;
 }
-// Riquadro in cima all'agenda di oggi: le prime scadenze senza assegno, le altre con "Vedi tutte".
-function riquadroSenzaAssegno() {
-  const lista = scadenzeSenzaAssegno();
+// Riquadro nell'appuntamento con un rappresentante: le scadenze senza assegno delle aziende che rappresenta.
+function riquadroSenzaAssegno(cid) {
+  if (!cid || tipoDi(S.contatti[cid]) !== 'rappresentante') return '';
+  const lista = scadenzeSenzaAssegno(cid);
   if (!lista.length) return '';
   const tot = lista.reduce((t, x) => t + x.aperto, 0);
   return `<div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:8px">
     <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
       <div class="card-title">Da pagare senza assegno · ${lista.length}</div><b style="color:var(--out)">${esc(euro(tot))}</b></div>
-    <div class="lista-righe">${lista.slice(0, 3).map(rigaSenzaAssegno).join('')}</div>
-    ${lista.length > 3 ? `<button type="button" class="btn btn-ghost" data-act="senzaAssegno" style="align-self:flex-start">Vedi tutte (${lista.length})</button>` : ''}
+    <div class="lista-righe">${lista.map(rigaSenzaAssegno).join('')}</div>
   </div>`;
-}
-function openSenzaAssegno() {
-  const lista = scadenzeSenzaAssegno();
-  openModal(`<h2>Da pagare senza assegno</h2>
-    <p class="muted" style="margin:0;font-size:13px">Fatture a rimessa diretta in Atlantis senza assegno emesso. Tocca per la situazione dell'azienda.</p>
-    <div class="lista-righe">${lista.map(rigaSenzaAssegno).join('') || '<p class="muted" style="margin:0">Nessuna scadenza.</p>'}</div>
-    <button type="button" class="btn btn-secondary" data-act="chiudi">Chiudi</button>`);
 }
 
 // Riquadro di un soggetto Atlantis: ragione sociale, totali e prossime scadenze.
@@ -3144,6 +3141,8 @@ function openDettaglio(aid) {
         <div><div class="cella-k">Fine</div><div class="cella-v">${esc(fineApp(a))}</div></div>
       </div>
       ${conflitti.length ? `<div class="avviso">${icon('warn', 18)}<div><strong>Si sovrappone a:</strong><br>${conflitti.map(x => `<a href="#" data-act="apri" data-id="${esc(x.id)}" style="color:inherit">${esc(x.ora)}–${esc(fineApp(x))} · ${esc(x.motivo || x.contatto.nome || '')}</a>`).join('<br>')}</div></div>` : ''}
+
+      ${riquadroSenzaAssegno(a.contattoId)}
 
       <div class="sezione">
         <h2>Pagamento</h2>
@@ -3552,7 +3551,6 @@ const ACTIONS = {
   noop: () => {},
   rapida: () => {},
   azienda: d => openAzienda(d.cid, d.nome),
-  senzaAssegno: () => openSenzaAssegno(),
   pagamento: d => cambiaPagamento(d.id, d.p).then(() => aggiornaLivello()),
   vibrazione: d => { if (d.v === 'off') lsSet('vibrazione', 'off'); else { lsDel('vibrazione'); vibra('ok'); } render(); },
   nuovoContatto: () => openContattoForm({ tipo: S.tipoC }),
