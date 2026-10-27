@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.15.2';
+const APP_VERSION = '2.16.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1124,7 +1124,7 @@ async function salvaPagamento(aid, v, rate) {
     importo, movimento: v.movimento === 'uscita' ? 'uscita' : 'entrata', pagamento, acconto, modalita, fattura, dataFattura,
     assegno: !rate && modalita === 'assegno' ? pulisciAssegno(v.assegno) : null,
     rate: rate ? rate.map(x => ({ data: x.data, importo: x.importo, modalita: x.modalita || '', pagata: !!x.pagata, ...(x.assegno ? { assegno: pulisciAssegno(x.assegno) } : {}), ...(x.inAssegni ? { inAssegni: true } : {}) })) : null,
-    storico, aggiornato: Date.now()
+    storico, pagamentoAggiornato: Date.now(), aggiornato: Date.now()
   }), 'Pagamento aggiornato');
 }
 
@@ -2798,13 +2798,14 @@ function azioniContatto(c, appId = '', cid = '', a = null) {
 function sezioneAtlantis(c, cid) {
   const at = c.atlantis;
   if (!at || typeof at !== 'object') return '';
+  const nota = x => { const n = [...fattureCoperte(cid, c, x).keys()]; return n.length ? `<p class="muted" style="margin:0;font-size:12.5px">Scadenze Atlantis di ${esc(n.map(k => 'Fatt. ' + k).join(', '))} nascoste: vale il pagamento dell'appuntamento.</p>` : ''; };
   const quando = at.aggiornato ? new Date(at.aggiornato).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
   // Rappresentante: un riepilogo per ogni azienda rappresentata.
   const mandanti = Array.isArray(at.mandanti) ? at.mandanti : [];
   if (mandanti.length) {
     return `<div class="sezione"><h2><span>Situazione Atlantis</span><span style="text-transform:none;letter-spacing:0;font-weight:600">${esc(quando)}</span></h2>
       ${mandanti.map(x => `<div style="display:flex;flex-direction:column;gap:10px">
-        <div class="chips-mandanti">${chipAzienda(x.azienda || x.ragione || '', cid)}</div>${soggettoAtlantis(x)}</div>`).join('')}
+        <div class="chips-mandanti">${chipAzienda(x.azienda || x.ragione || '', cid)}</div>${soggettoAtlantis(x, 4, fattureCoperte(cid, c, x))}${nota(x)}</div>`).join('')}
     </div>`;
   }
   if (!at.codice) {
@@ -2812,12 +2813,33 @@ function sezioneAtlantis(c, cid) {
       <p class="muted" style="margin:0">${esc(at.nota || 'Nessun soggetto trovato in Atlantis')}${quando ? ' · controllato il ' + esc(quando) : ''}</p></div>`;
   }
   return `<div class="sezione"><h2><span>Situazione Atlantis</span><span style="text-transform:none;letter-spacing:0;font-weight:600">${esc(quando)}</span></h2>
-    ${soggettoAtlantis(at)}
+    ${soggettoAtlantis(at, 4, fattureCoperte(cid, c, at))}${nota(at)}
   </div>`;
 }
 
+// Numero della fattura di un appuntamento: il campo "N. fattura" o, se manca, "FT 3138" scritto nel titolo.
+function numeroFatturaApp(a) {
+  const n = String(a.fattura || '').trim() || (String(a.motivo || '').match(/\b(?:FT|fatt(?:ura)?)\.?\s*(?:n\.?\s*)?(\d+)/i) || [])[1] || '';
+  return n.replace(/^0+/, '');
+}
+// Fatture di un soggetto Atlantis il cui pagamento è stato aggiornato in un appuntamento del contatto
+// (rate, assegni, acconto o saldo): le loro scadenze previste in Atlantis non contano più.
+// Restituisce numero fattura → appuntamento. Il filtro è nell'app, così l'aggiornamento di Atlantis non le fa ricomparire.
+function fattureCoperte(cid, c, sogg) {
+  const out = new Map();
+  for (const a of Object.values(S.appuntamenti || {})) {
+    if (!a || a.contattoId !== cid || a.stato === 'annullato') continue;
+    if (!(a.pagamentoAggiornato || rateDi(a).length || statoPag(a) !== 'da-saldare')) continue;
+    if (a.azienda && Array.isArray(c?.atlantis?.mandanti) && c.atlantis.mandanti.length && mandanteAtlantis(c, a.azienda) !== sogg) continue;
+    const n = numeroFatturaApp(a);
+    if (n) out.set(n, a);
+  }
+  return out;
+}
+const numFatt = x => String(x || '').trim().replace(/^0+/, '');
+
 // Riquadro di un soggetto Atlantis: ragione sociale, totali e prossime scadenze.
-function soggettoAtlantis(at, quante = 4) {
+function soggettoAtlantis(at, quante = 4, coperte = new Map()) {
   if (!at.codice) return `<p class="muted" style="margin:0">${esc(at.nota || 'Non trovato in Atlantis')}</p>`;
   const lato = (k, titolo, colore) => {
     const x = at[k];
@@ -2828,7 +2850,7 @@ function soggettoAtlantis(at, quante = 4) {
     </div>`;
   };
   const celle = [lato('cliente', 'Ci deve', 'var(--in)'), lato('fornitore', 'Dobbiamo', 'var(--out)')].filter(Boolean);
-  const prossime = Array.isArray(at.prossime) ? at.prossime.slice(0, quante) : [];
+  const prossime = Array.isArray(at.prossime) ? at.prossime.filter(x => !coperte.has(numFatt(x.fattura))).slice(0, quante) : [];
   return `<div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:2px">
       <div class="card-title" style="overflow-wrap:anywhere">${esc(at.ragione || '')}</div>
       <div class="card-meta">Codice ${esc(at.codice)}${at.nota ? ' · ' + esc(at.nota) : ''}</div>
@@ -2857,13 +2879,13 @@ function openAzienda(cid, nome) {
     <h2 style="overflow-wrap:anywhere">${esc(nome)}</h2>
     <p class="muted" style="margin:0;font-size:13px">${c.nome ? 'Rappresentante: ' + esc(c.nome) : ''}${quando ? ' · Atlantis aggiornato il ' + esc(quando) : ''}</p>
     <div class="sezione"><h2>Situazione contabile</h2>
-      ${m ? soggettoAtlantis(m, haFatture(m) ? 0 : 6) : '<p class="muted" style="margin:0">Situazione non ancora disponibile: si aggiorna ogni mattina alle 6:40.</p>'}
+      ${m ? soggettoAtlantis(m, haFatture(m) ? 0 : 6, fattureCoperte(cid, c, m)) : '<p class="muted" style="margin:0">Situazione non ancora disponibile: si aggiorna ogni mattina alle 6:40.</p>'}
     </div>
-    ${haFatture(m) ? `<div class="sezione"><h2>Fatture da chiudere</h2><div data-fatture>${fattureDaChiudere(m, null)}</div></div>` : ''}
+    ${haFatture(m) ? `<div class="sezione"><h2>Fatture da chiudere</h2><div data-fatture>${fattureDaChiudere(m, null, fattureCoperte(cid, c, m))}</div></div>` : ''}
     <div class="sezione"><h2>Assegni emessi</h2><div data-assegni><p class="muted" style="margin:0">Carico gli assegni…</p></div></div>
     <button type="button" class="btn btn-secondary" data-act="chiudi">Chiudi</button>`, box => mostraAssegniAzienda(box.querySelector('[data-assegni]'), nome, lista => {
     const el = box.querySelector('[data-fatture]');
-    if (el) el.innerHTML = fattureDaChiudere(m, lista);
+    if (el) el.innerHTML = fattureDaChiudere(m, lista, fattureCoperte(cid, c, m));
   }));
 }
 
@@ -2871,7 +2893,8 @@ const haFatture = m => Array.isArray(m?.fatture) && m.fatture.length > 0;
 
 // Fatture ancora aperte in Atlantis: per ognuna gli assegni emessi che la citano nella causale ("FT.N. 1044")
 // e quanto resta da chiudere. Gli assegni già pagati sono di solito già registrati in Atlantis, quindi non si tolgono.
-function fattureDaChiudere(m, assegni) {
+// coperte: fatture il cui pagamento è nell'appuntamento; al posto delle scadenze Atlantis si vedono le sue rate.
+function fattureDaChiudere(m, assegni, coperte = new Map()) {
   const oggi = todayISO();
   const cita = (x, numero) => new RegExp(`(^|\\D)0*${numero.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\D|$)`).test(String(x.causale || ''));
   const righe = [...m.fatture].sort((a, b) => String(a.data).localeCompare(String(b.data))).map(f => {
@@ -2881,8 +2904,10 @@ function fattureDaChiudere(m, assegni) {
     return { f, numero, suoi, resta: Math.max(0, Math.round((Number(f.aperto) - coperto) * 100) / 100) };
   });
   const blocchi = righe.map(({ f, numero, suoi, resta }) => {
-    const rate = (Array.isArray(f.rate) ? f.rate : []).filter(r => r?.data).sort((a, b) => a.data.localeCompare(b.data));
+    const app = coperte.get(numero);
+    const rate = (app ? rateDi(app).filter(r => !r.pagata) : Array.isArray(f.rate) ? f.rate : []).filter(r => r?.data).sort((a, b) => a.data.localeCompare(b.data));
     const stato = !resta ? '<span class="tag tag-saldato">coperta da assegni</span>'
+      : app ? '<span class="tag tag-warn">pagamento concordato</span>'
       : suoi.length ? '<span class="tag tag-warn">da chiudere</span>'
       : `<span class="tag ${rate.some(r => r.data < oggi) ? 'tag-bad' : 'tag-warn'}">non ancora pagata</span>`;
     return `<div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
@@ -2895,7 +2920,7 @@ function fattureDaChiudere(m, assegni) {
       <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
         <div>${stato}</div>
         ${resta ? `<b style="color:var(--out)">Da chiudere ${esc(euro(resta))}</b>` : ''}</div>
-      ${resta && !suoi.length && rate.length ? `<div class="card-meta">Scadenze: ${rate.map(r => `${fmtCorta(r.data)} ${euro(r.importo)}`).map(esc).join(' · ')}</div>` : ''}
+      ${resta && (app || !suoi.length) && rate.length ? `<div class="card-meta">${app ? 'Rate dell’appuntamento' : 'Scadenze'}: ${rate.map(r => `${fmtCorta(r.data)} ${euro(r.importo)}`).map(esc).join(' · ')}</div>` : ''}
     </div>`;
   });
   const totale = righe.reduce((t, r) => t + r.resta, 0);

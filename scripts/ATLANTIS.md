@@ -76,3 +76,7 @@ fermati subito. Altrimenti segui i passi 2-4 qui sopra solo per quei contatti. `
 
 Ometti `cliente` o `fornitore` se il soggetto non ha quel ruolo. `prossime`: al massimo 6 scadenze,
 prima le scadute e poi le più vicine. Non inserire dati di Atlantis nel repository né nei log condivisi.
+
+Scrivi sempre tutte le scadenze aperte, anche quelle di fatture già gestite negli appuntamenti: è l'app a
+nasconderle quando un appuntamento dello stesso contatto ha quella fattura (campo `fattura` o "FT 3138" nel
+titolo) e il pagamento aggiornato (rate, assegni, acconto o saldo). Non modificare gli appuntamenti.
