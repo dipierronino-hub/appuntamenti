@@ -2845,13 +2845,24 @@ function fattureCoperte(cid, c, sogg) {
   return out;
 }
 const numFatt = x => String(x || '').trim().replace(/^0+/, '');
+// Atlantis numera le fatture come "V100010622" mentre nell'appuntamento o nella causale dell'assegno
+// si scrive "10622": il confronto avviene sulle cifre, e il numero scritto dall'utente deve chiudere quello di Atlantis.
+function coperta(coperte, numeroAtlantis) {
+  const a = String(numeroAtlantis || '').replace(/\D/g, '').replace(/^0+/, '');
+  if (!a) return undefined;
+  for (const [k, app] of coperte) {
+    const d = String(k || '').replace(/\D/g, '').replace(/^0+/, '');
+    if (d && (a === d || (d.length >= 4 && a.endsWith(d)))) return app;
+  }
+  return undefined;
+}
 
 // Scadenze da pagare per cui non è stato emesso un assegno: fatture Atlantis delle aziende rappresentate a
 // rimessa diretta, senza un assegno citato nelle note ("ass. 7758") e senza un pagamento aggiornato in un appuntamento.
 const ASSEGNO_IN_NOTA = /\bass(?:egn[oi])?\.?\s*(?:n\.?\s*)?\d/i;
 function senzaAssegno(f, coperte) {
   return f && f.ruolo !== 'cliente' && /rimessa/i.test(f.tipo || '') && !ASSEGNO_IN_NOTA.test(f.nota || '')
-    && !coperte.has(numFatt(f.numero)) && Number(f.aperto) > 0;
+    && !coperta(coperte, f.numero) && Number(f.aperto) > 0;
 }
 function scadenzeSenzaAssegno(soloCid) {
   const out = [];
@@ -2901,7 +2912,7 @@ function soggettoAtlantis(at, quante = 4, coperte = new Map()) {
     </div>`;
   };
   const celle = [lato('cliente', 'Ci deve', 'var(--in)'), lato('fornitore', 'Dobbiamo', 'var(--out)')].filter(Boolean);
-  const prossime = Array.isArray(at.prossime) ? at.prossime.filter(x => !coperte.has(numFatt(x.fattura))).slice(0, quante) : [];
+  const prossime = Array.isArray(at.prossime) ? at.prossime.filter(x => !coperta(coperte, x.fattura)).slice(0, quante) : [];
   const senza = new Set((Array.isArray(at.fatture) ? at.fatture : []).filter(f => senzaAssegno(f, coperte)).map(f => numFatt(f.numero)));
   return `<div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:2px">
       <div class="card-title" style="overflow-wrap:anywhere">${esc(at.ragione || '')}</div>
@@ -2956,7 +2967,7 @@ function fattureDaChiudere(m, assegni, coperte = new Map()) {
     return { f, numero, suoi, resta: Math.max(0, Math.round((Number(f.aperto) - coperto) * 100) / 100) };
   });
   const blocchi = righe.map(({ f, numero, suoi, resta }) => {
-    const app = coperte.get(numero);
+    const app = coperta(coperte, numero);
     const rate = (app ? rateDi(app).filter(r => !r.pagata) : Array.isArray(f.rate) ? f.rate : []).filter(r => r?.data).sort((a, b) => a.data.localeCompare(b.data));
     const stato = !resta ? '<span class="tag tag-saldato">coperta da assegni</span>'
       : app ? '<span class="tag tag-warn">pagamento concordato</span>'
