@@ -3910,6 +3910,7 @@ if (configMancante) {
       $('#main').innerHTML = '';
       S.contatti = {}; S.appuntamenti = {}; S.impostazioni = {};
       $('#app').hidden = true;
+      const lf = document.querySelector('#login form'); if (lf) { lf.reset(); lf.querySelector('[name=password]').value = ''; }
       $('#login').hidden = false;
     }
   });
