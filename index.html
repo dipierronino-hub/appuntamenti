@@ -1693,7 +1693,7 @@ function renderAgenda() {
   $('#main').innerHTML = `<div class="view">
     <div class="head">
       <div><div class="card-kicker">${esc(kicker)}</div><h1>${esc(titolo)}</h1></div>
-      <div class="toggle">${toggle('lista', 'list', 'Lista')}${toggle('timeline', 'clock', 'Linea del tempo')}</div>
+      <div style="display:flex;gap:8px;align-items:center"><div class="toggle">${toggle('lista', 'list', 'Lista')}${toggle('timeline', 'clock', 'Linea del tempo')}</div><button class="btn btn-ghost btn-icon" data-act="logout" aria-label="Esci" title="Esci">${icon('out')}</button></div>
     </div>
     <div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
