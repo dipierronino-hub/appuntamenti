@@ -99,6 +99,13 @@ function soggetto(at) {
       dataFattura: String(x.dataFattura || '').slice(0, 10),
       tipo: String(x.tipo || '').slice(0, 40)
     })),
+    // Note di credito a nostro favore (saldo positivo): l'app le mostra e le scala dal totale da pagare.
+    crediti: (Array.isArray(at.crediti) ? at.crediti : []).slice(0, 20).map(x => ({
+      numero: String(x.numero || '').replace(/^0+/, '').slice(0, 30),
+      data: String(x.data || '').slice(0, 10),
+      importo: num(x.importo),
+      tipo: String(x.tipo || '').slice(0, 40)
+    })),
     // Fatture con scadenze aperte: l'app toglie gli assegni emessi e mostra quanto resta da chiudere.
     fatture: (Array.isArray(at.fatture) ? at.fatture : []).slice(0, 20).map(f => ({
       numero: String(f.numero || '').replace(/^0+/, '').slice(0, 30),

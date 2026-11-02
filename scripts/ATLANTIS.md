@@ -66,6 +66,16 @@ diversa da `aperto`, scrivilo in `nota` (es. "in Atlantis le scadenze aperte som
 vengono modificate a mano e non tornano con la fattura. L'app abbina gli assegni emessi che citano il
 numero della fattura nella causale e mostra quanto resta da chiudere.
 
+Note di credito: le righe di `scadenze_aperte` con PAC_SALDO positivo (credito a nostro favore) vanno anche in
+`crediti`, una voce per ognuna (per tutti i soggetti, non solo i mandanti), anche se non entrano in `prossime`:
+
+```json
+"crediti": [{ "numero": "2258", "data": "2026-10-15", "importo": 228, "tipo": "Rimessa diretta a vista" }]
+```
+
+`numero` = PA_NUMDOC senza zeri iniziali, `data` = PA_DATDOC, `importo` = PAC_SALDO (positivo). L'app le mostra
+nella scheda dell'azienda e le scala dal totale da chiudere.
+
 ## Controllo di ogni ora (8-20)
 
 Un secondo controllo gira ogni ora dalle 8 alle 20 per gli appuntamenti appena creati o modificati:
