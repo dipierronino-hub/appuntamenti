@@ -1986,6 +1986,9 @@ function renderImpostazioni() {
 
     <div class="sezione">
       <h2>Account</h2>
+      ${bioSupportato() ? (lsGet('bio_id')
+        ? '<button class="btn btn-secondary" data-act="bioOff" style="align-self:flex-start">Disattiva accesso con impronta</button>'
+        : '<button class="btn btn-secondary" data-act="bioOn" style="align-self:flex-start">Attiva accesso con impronta</button>') : ''}
       <button class="btn btn-secondary btn-danger" data-act="logout" style="align-self:flex-start">${icon('out', 16)} Esci</button>
       <p class="muted" style="margin:0">Versione ${APP_VERSION}</p>
     </div>
@@ -3605,7 +3608,9 @@ function vaiA(vista) {
 
 const ACTIONS = {
   nav: d => vaiA(d.v),
-  logout: () => auth.signOut(),
+  logout: () => { if (window.confirm('Vuoi davvero uscire dall’app?')) auth.signOut(); },
+  bioOn: () => attivaImpronta(),
+  bioOff: () => disattivaImpronta(),
   // Nella sezione Contatti il + crea un contatto, senza appuntamento.
   // Il + in basso chiede cosa creare; nella sezione Contatti crea direttamente un contatto.
   nuovoApp: (d, el) => {
@@ -3780,6 +3785,62 @@ function voiceStart(btn = $('#mic'), suTesto = null) {
   rec.start();
 }
 
+// ===================== ACCESSO CON IMPRONTA (blocco locale su questo dispositivo) =====================
+const bioSupportato = () => Boolean(window.PublicKeyCredential && navigator.credentials);
+const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+const randBytes = n => crypto.getRandomValues(new Uint8Array(n));
+const bioSbloccatoQuesta = () => { try { return sessionStorage.getItem('bio_ok') === '1'; } catch (e) { return false; } };
+
+async function attivaImpronta() {
+  try {
+    const cred = await navigator.credentials.create({ publicKey: {
+      challenge: randBytes(32),
+      rp: { name: 'Appuntamenti', id: location.hostname },
+      user: { id: randBytes(16), name: S.user.email || 'utente', displayName: S.user.email || 'utente' },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+      timeout: 60000 } });
+    lsSet('bio_id', b64u(cred.rawId));
+    toast('Accesso con impronta attivato');
+  } catch (e) { toast('Impronta non attivata'); }
+  render();
+}
+
+function disattivaImpronta() {
+  try { localStorage.removeItem('bio_id'); } catch (e) { /* storage non disponibile */ }
+  toast('Accesso con impronta disattivato');
+  render();
+}
+
+async function sbloccaConImpronta() {
+  try {
+    await navigator.credentials.get({ publicKey: {
+      challenge: randBytes(32),
+      rpId: location.hostname,
+      allowCredentials: [{ type: 'public-key', id: unb64u(lsGet('bio_id')) }],
+      userVerification: 'required', timeout: 60000 } });
+    try { sessionStorage.setItem('bio_ok', '1'); } catch (e) { /* storage non disponibile */ }
+    togliBlocco();
+    return true;
+  } catch (e) { return false; }
+}
+
+function togliBlocco() { const d = document.getElementById('bioLock'); if (d) d.remove(); }
+
+function mostraBlocco() {
+  if (document.getElementById('bioLock')) return;
+  const d = document.createElement('div');
+  d.id = 'bioLock';
+  d.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--color-bg,#f4f6fb);padding:24px;text-align:center';
+  d.innerHTML = '<h2 style="margin:0">Appuntamenti</h2><p class="muted" style="margin:0">Usa l’impronta per entrare.</p>'
+    + '<button class="btn btn-primary" id="bioGo">Sblocca con impronta</button>'
+    + '<button class="btn btn-ghost" id="bioOut">Esci</button>';
+  document.body.appendChild(d);
+  d.querySelector('#bioGo').onclick = async () => { if (!(await sbloccaConImpronta())) toast('Impronta non riconosciuta, riprova'); };
+  d.querySelector('#bioOut').onclick = () => { if (window.confirm('Vuoi davvero uscire dall’app?')) { togliBlocco(); auth.signOut(); } };
+}
+
 // ===================== AVVIO, NOTIFICHE, INSTALLAZIONE =====================
 // Dopo il primo caricamento dei dati: promemoria e apertura da notifica (?app=ID).
 function datiPronti() {
@@ -3839,6 +3900,7 @@ if (configMancante) {
     if (u) {
       $('#login').hidden = true;
       $('#app').hidden = false;
+      if (lsGet('bio_id') && !bioSbloccatoQuesta()) mostraBlocco();
       armaIndietro();
       attachListeners();
       render();
