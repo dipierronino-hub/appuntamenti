@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.17.2';
+const APP_VERSION = '2.17.3';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BLWsu156owOn-wp8g3yK0KrswRMoGC3FDedwuHH5KjEs3bdcSqOOyHWVnVla_60QcyVh5AbMo4x2TP9-LXqDets';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -2845,6 +2845,15 @@ function fattureCoperte(cid, c, sogg) {
   return out;
 }
 const numFatt = x => String(x || '').trim().replace(/^0+/, '');
+// Note di credito a nostro favore (scadenze Atlantis con saldo positivo): campo crediti scritto dalla routine,
+// o in mancanza le righe di prossime segnate "a nostro favore". Riducono il totale da pagare.
+const eCredito = x => /a nostro favore/i.test(String(x?.rif || ''));
+function creditiDi(m) {
+  if (Array.isArray(m?.crediti)) return m.crediti.filter(x => Number(x?.importo) > 0);
+  return (Array.isArray(m?.prossime) ? m.prossime : []).filter(x => eCredito(x) && Number(x.importo) > 0)
+    .map(x => ({ numero: numFatt(x.fattura), data: x.dataFattura || '', importo: Number(x.importo), tipo: x.tipo || '' }));
+}
+const testoNotaCredito = x => `Nota di credito${x.numero ? ' n. ' + numFatt(x.numero) : ''}${validDate(x.data) ? ' del ' + fmtCorta(x.data) : ''}`;
 // Atlantis numera le fatture come "V100010622" mentre nell'appuntamento o nella causale dell'assegno
 // si scrive "10622": il confronto avviene sulle cifre, e il numero scritto dall'utente deve chiudere quello di Atlantis.
 function coperta(coperte, numeroAtlantis) {
@@ -2919,7 +2928,11 @@ function soggettoAtlantis(at, quante = 4, coperte = new Map()) {
       <div class="card-meta">Codice ${esc(at.codice)}${at.nota ? ' · ' + esc(at.nota) : ''}</div>
     </div>
     ${celle.length ? `<div class="griglia" style="grid-template-columns:repeat(${celle.length},minmax(0,1fr))">${celle.join('')}</div>` : ''}
-    ${prossime.length ? `<div class="lista-righe">${prossime.map(x => `<div class="riga">
+    ${prossime.length ? `<div class="lista-righe">${prossime.map(x => eCredito(x) ? `<div class="riga">
+        <div class="testo"><div style="font-weight:600">${esc(testoNotaCredito({ numero: x.fattura, data: x.dataFattura }))} <span class="tag tag-in">a nostro favore</span></div>
+          <div class="card-meta">${esc(['Si scala da quanto dobbiamo', x.tipo].filter(Boolean).join(' · '))}</div></div>
+        <span class="importo" style="color:var(--in)">− ${esc(euro(x.importo))}</span>
+      </div>` : `<div class="riga">
         <div class="testo"><div style="font-weight:600">${esc(validDate(x.data) ? fmtCorta(x.data) : x.data || '')}${x.data && x.data < todayISO() ? ' <span class="tag tag-bad">scaduta</span>' : ''}${senza.has(numFatt(x.fattura)) ? ' <span class="tag tag-warn">senza assegno</span>' : ''}</div>
           <div class="card-meta">${esc([x.ruolo === 'fornitore' ? 'Da pagare' : 'Da incassare', testoFattura(x.fattura, x.dataFattura) || x.rif, x.tipo].filter(Boolean).join(' · '))}</div></div>
         <span class="importo" style="color:${x.ruolo === 'fornitore' ? 'var(--out)' : 'var(--in)'}">${esc(euro(x.importo))}</span>
@@ -2986,8 +2999,17 @@ function fattureDaChiudere(m, assegni, coperte = new Map()) {
       ${resta && (app || !suoi.length) && rate.length ? `<div class="card-meta">${app ? 'Rate dell’appuntamento' : 'Scadenze'}: ${rate.map(r => `${fmtCorta(r.data)} ${euro(r.importo)}`).map(esc).join(' · ')}</div>` : ''}
     </div>`;
   });
-  const totale = righe.reduce((t, r) => t + r.resta, 0);
-  return `<p style="margin:0 0 8px">Totale da chiudere: <b style="color:var(--out)">${esc(euro(totale))}</b>${assegni ? '' : ' <span class="muted" style="font-size:12px">(senza contare gli assegni emessi)</span>'}</p>
+  const crediti = creditiDi(m);
+  const totCrediti = crediti.reduce((t, x) => t + Number(x.importo), 0);
+  for (const x of crediti) blocchi.push(`<div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+        <div class="card-title">${esc(testoNotaCredito(x))}</div>
+        <span class="importo" style="color:var(--in)">− ${esc(euro(x.importo))}</span></div>
+      <div class="card-meta">${[x.tipo, 'si scala dal totale'].filter(Boolean).map(esc).join(' · ')}</div>
+      <div><span class="tag tag-in">a nostro favore</span></div>
+    </div>`);
+  const totale = Math.max(0, Math.round((righe.reduce((t, r) => t + r.resta, 0) - totCrediti) * 100) / 100);
+  return `<p style="margin:0 0 8px">Totale da chiudere: <b style="color:var(--out)">${esc(euro(totale))}</b>${totCrediti ? ` <span class="muted" style="font-size:12px">(già tolte note di credito per ${esc(euro(totCrediti))})</span>` : ''}${assegni ? '' : ' <span class="muted" style="font-size:12px">(senza contare gli assegni emessi)</span>'}</p>
     <div style="display:flex;flex-direction:column;gap:8px">${blocchi.join('')}</div>`;
 }
 
