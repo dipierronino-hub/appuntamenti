@@ -1752,12 +1752,12 @@ function timeline(items, eOggi) {
     ${pos.map(({ x, ini, fine, col }) => {
       const spento = x.stato === 'annullato' || passato(x);
       const w = `(100% - 58px) / ${nCol}`;
-      const alto = Math.max((fine - ini) * PX, 44);
+      const alto = Math.max((fine - ini) * PX, 60);
       const ritardo = x.data < todayISO() && !CHIUSI.includes(x.stato);
       return `<div class="tl-block" data-stato="${esc(x.stato)}"${ritardo ? ' data-ritardo' : ''} data-act="apri" data-id="${esc(x.id)}" role="button" tabindex="0" style="left:calc(52px + ${w} * ${col});width:calc(${w} - 6px);top:${(ini - da) * PX + 1}px;height:${alto - 2}px;opacity:${spento ? '.5' : '1'}">
         <div class="tl-t"><span>${esc(x.ora)}–${esc(fineApp(x))}</span><span>${conPagamento(x) ? `<b style="color:${coloreMov(x)}">${esc(haImporto(x) ? importoFirmato(x) : etichettaPag(x))}</b> · ` : ''}${esc(ETICHETTE_STATO[x.stato] || '')}</span></div>
         <div class="tl-ti" style="text-decoration:${x.stato === 'annullato' ? 'line-through' : 'none'}">${esc(x.motivo || x.contatto.nome || 'Appuntamento')}</div>
-        ${alto >= 70 ? `<div class="tl-c">${esc(x.contatto.nome || '')}</div>` : ''}
+        ${alto >= 84 ? `<div class="tl-c">${esc(x.contatto.nome || '')}</div>` : ''}
       </div>`;
     }).join('')}
   </div>`;
