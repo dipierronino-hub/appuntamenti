@@ -1430,7 +1430,14 @@ async function iscriviPush() {
   if (!pushSupportato() || Notification.permission !== 'granted' || !S.user) return false;
   try {
     const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveVapid() });
+    // Se l'iscrizione esistente usa una chiave pubblica diversa (chiave VAPID cambiata), la annulla e ne crea una nuova.
+    const chiave = chiaveVapid();
+    let sub = await reg.pushManager.getSubscription();
+    if (sub && sub.options && sub.options.applicationServerKey) {
+      const vecchia = new Uint8Array(sub.options.applicationServerKey);
+      if (vecchia.length !== chiave.length || vecchia.some((x, i) => x !== chiave[i])) { await sub.unsubscribe(); sub = null; }
+    }
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiave });
     const j = sub.toJSON();
     const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(j.endpoint)));
     const id = btoa(String.fromCharCode(...hash.slice(0, 12))).replace(/\+/g, '-').replace(/\//g, '_');
