@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.17.3';
+const APP_VERSION = '2.18.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -765,6 +765,7 @@ const ICON_PATHS = {
   file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
   mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/>',
   out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
   ext: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -1989,7 +1990,9 @@ function renderImpostazioni() {
       ${bioSupportato() ? (lsGet('bio_id')
         ? '<button class="btn btn-secondary" data-act="bioOff" style="align-self:flex-start">Disattiva accesso con impronta</button>'
         : '<button class="btn btn-secondary" data-act="bioOn" style="align-self:flex-start">Attiva accesso con impronta</button>') : ''}
-      <button class="btn btn-secondary btn-danger" data-act="logout" style="align-self:flex-start">${icon('out', 16)} Esci</button>
+      <button class="btn btn-secondary" data-act="pinCambia" style="align-self:flex-start">${icon('lock', 16)} Cambia PIN</button>
+      <button class="btn btn-secondary btn-danger" data-act="logout" style="align-self:flex-start">${icon('out', 16)} Esci da questo dispositivo</button>
+      <p class="muted" style="margin:0">Il PIN vale solo su questo dispositivo. Su un dispositivo nuovo servono email, password e poi un PIN.</p>
       <p class="muted" style="margin:0">Versione ${APP_VERSION}</p>
     </div>
   </div>`;
@@ -3611,6 +3614,7 @@ const ACTIONS = {
   logout: () => { if (window.confirm('Vuoi davvero uscire dall’app?')) auth.signOut(); },
   bioOn: () => attivaImpronta(),
   bioOff: () => disattivaImpronta(),
+  pinCambia: () => mostraBlocco('cambia'),
   // Nella sezione Contatti il + crea un contatto, senza appuntamento.
   // Il + in basso chiede cosa creare; nella sezione Contatti crea direttamente un contatto.
   nuovoApp: (d, el) => {
@@ -3790,7 +3794,6 @@ const bioSupportato = () => Boolean(window.PublicKeyCredential && navigator.cred
 const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const unb64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
 const randBytes = n => crypto.getRandomValues(new Uint8Array(n));
-const bioSbloccatoQuesta = () => { try { return sessionStorage.getItem('bio_ok') === '1'; } catch (e) { return false; } };
 
 async function attivaImpronta() {
   try {
@@ -3820,26 +3823,119 @@ async function sbloccaConImpronta() {
       rpId: location.hostname,
       allowCredentials: [{ type: 'public-key', id: unb64u(lsGet('bio_id')) }],
       userVerification: 'required', timeout: 60000 } });
-    try { sessionStorage.setItem('bio_ok', '1'); } catch (e) { /* storage non disponibile */ }
-    togliBlocco();
+    sbloccaApp();
     return true;
   } catch (e) { return false; }
 }
 
-function togliBlocco() { const d = document.getElementById('bioLock'); if (d) d.remove(); }
+// ===================== PIN DI ACCESSO (obbligatorio su ogni dispositivo) =====================
+// Il PIN resta solo su questo dispositivo (salvato come impronta crittografica, mai in chiaro).
+// Ogni volta che l'app viene aperta, o dopo 5 minuti in background, chiede PIN o impronta.
+// Un dispositivo senza PIN (es. un PC con una vecchia sessione salvata) deve rifare l'accesso
+// con email e password prima di poter scegliere il PIN.
+const PIN_TENTATIVI_MAX = 5;
+const BLOCCO_DOPO_MS = 5 * 60 * 1000;
+const pinChiave = () => 'pin_' + (S.user?.uid || '');
+const ssGet = k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
+const ssSet = (k, v) => { try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, v); } catch (e) { /* storage non disponibile */ } };
+const pinSalvato = () => { try { return JSON.parse(lsGet(pinChiave()) || 'null'); } catch (e) { return null; } };
+const pinImpostato = () => Boolean(pinSalvato()?.hash);
+const sbloccataQuesta = () => ssGet('app_sbloccata') === '1';
+const pinValido = v => /^\d{4,8}$/.test(v);
 
-function mostraBlocco() {
-  if (document.getElementById('bioLock')) return;
+async function hashPin(pin, sale) {
+  const chiave = await crypto.subtle.importKey('raw', new TextEncoder().encode(pin), 'PBKDF2', false, ['deriveBits']);
+  const bit = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: unb64u(sale), iterations: 150000, hash: 'SHA-256' }, chiave, 256);
+  return b64u(bit);
+}
+async function salvaPin(pin) {
+  const sale = b64u(randBytes(16));
+  lsSet(pinChiave(), JSON.stringify({ sale, hash: await hashPin(pin, sale) }));
+  lsDel('pin_err');
+}
+async function pinGiusto(pin) {
+  const p = pinSalvato();
+  return Boolean(p) && (await hashPin(pin, p.sale)) === p.hash;
+}
+// PIN dimenticato o troppi errori: si cancella e si torna a email e password.
+function azzeraPinEdEsci(motivo) {
+  lsDel(pinChiave()); lsDel('pin_err');
+  ssSet('motivo_login', motivo);
+  togliBlocco();
+  auth.signOut();
+}
+
+function togliBlocco() { const d = document.getElementById('bioLock'); if (d) d.remove(); }
+function sbloccaApp() {
+  ssSet('app_sbloccata', '1');
+  togliBlocco();
+  entraNellApp();
+}
+
+// modo: 'sblocca' (chiede il PIN), 'crea' (sceglie il PIN), 'cambia' (PIN attuale + nuovo)
+function mostraBlocco(modo = 'sblocca') {
+  togliBlocco();
+  if (modo === 'sblocca') { ssSet('app_sbloccata', null); $('#app').hidden = true; }
   const d = document.createElement('div');
   d.id = 'bioLock';
-  d.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--color-bg,#f4f6fb);padding:24px;text-align:center';
-  d.innerHTML = '<h2 style="margin:0">Appuntamenti</h2><p class="muted" style="margin:0">Usa l’impronta per entrare.</p>'
-    + '<button class="btn btn-primary" id="bioGo">Sblocca con impronta</button>'
-    + '<button class="btn btn-ghost" id="bioOut">Esci</button>';
+  d.style.cssText = 'position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:var(--bg,#0b0f1a);padding:24px 20px;overflow:auto';
+  const campo = (nome, testo) => `<label class="field"><span>${testo}</span><input class="input" name="${nome}" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" required style="font-size:22px;letter-spacing:6px;text-align:center"></label>`;
+  const titolo = { sblocca: 'Inserisci il PIN', crea: 'Scegli un PIN', cambia: 'Cambia PIN' }[modo];
+  const spiega = {
+    sblocca: 'Per aprire l’app su questo dispositivo.',
+    crea: 'Da 4 a 8 cifre. Servirà ogni volta che apri l’app su questo dispositivo.',
+    cambia: 'Inserisci il PIN attuale e poi quello nuovo.'
+  }[modo];
+  const usaImpronta = modo === 'sblocca' && lsGet('bio_id') && bioSupportato();
+  d.innerHTML = `<form class="login-card glass" id="pinForm" novalidate>
+      <div><div class="login-logo">${icon('lock', 26)}</div><h1 style="font-size:30px">${titolo}</h1>
+      <p class="muted" style="margin:6px 0 0">${spiega}</p></div>
+      ${modo === 'cambia' ? campo('vecchio', 'PIN attuale') : ''}
+      ${campo('pin', modo === 'sblocca' ? 'PIN' : 'Nuovo PIN')}
+      ${modo === 'sblocca' ? '' : campo('ripeti', 'Ripeti il PIN')}
+      <button class="btn btn-primary btn-block" style="min-height:50px;font-size:16px">${modo === 'sblocca' ? 'Sblocca' : 'Salva PIN'}</button>
+      ${usaImpronta ? '<button type="button" class="btn btn-secondary btn-block" id="bioGo">Sblocca con impronta</button>' : ''}
+      <p class="err" id="pinErr"></p>
+      ${modo === 'cambia' ? '<button type="button" class="btn btn-ghost" id="pinAnnulla">Annulla</button>'
+        : `${modo === 'sblocca' ? '<button type="button" class="btn btn-ghost" id="pinScordato">Ho dimenticato il PIN</button>' : ''}<button type="button" class="btn btn-ghost" id="bioOut">Esci</button>`}
+    </form>`;
   document.body.appendChild(d);
-  d.querySelector('#bioGo').onclick = async () => { if (!(await sbloccaConImpronta())) toast('Impronta non riconosciuta, riprova'); };
-  d.querySelector('#bioOut').onclick = () => { if (window.confirm('Vuoi davvero uscire dall’app?')) { togliBlocco(); auth.signOut(); } };
+  const f = d.querySelector('#pinForm');
+  const err = t => { d.querySelector('#pinErr').textContent = t; };
+  setTimeout(() => (f.vecchio || f.pin).focus(), 50);
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const pin = f.pin.value.trim();
+    if (modo === 'sblocca') {
+      if (await pinGiusto(pin)) { lsDel('pin_err'); sbloccaApp(); return; }
+      const n = Number(lsGet('pin_err') || 0) + 1;
+      if (n >= PIN_TENTATIVI_MAX) { azzeraPinEdEsci('tentativi'); return; }
+      lsSet('pin_err', String(n));
+      f.pin.value = '';
+      err(`PIN sbagliato. Ancora ${plurale(PIN_TENTATIVI_MAX - n, 'tentativo', 'tentativi')}, poi servirà la password.`);
+      return;
+    }
+    if (modo === 'cambia' && !(await pinGiusto(f.vecchio.value.trim()))) { err('Il PIN attuale non è giusto.'); return; }
+    if (!pinValido(pin)) { err('Il PIN deve avere da 4 a 8 cifre.'); return; }
+    if (pin !== f.ripeti.value.trim()) { err('I due PIN non sono uguali.'); return; }
+    await salvaPin(pin);
+    toast(modo === 'crea' ? 'PIN impostato' : 'PIN cambiato');
+    if (modo === 'crea') sbloccaApp(); else togliBlocco();
+  });
+  const b = sel => d.querySelector(sel);
+  if (b('#bioGo')) b('#bioGo').onclick = async () => { if (!(await sbloccaConImpronta())) err('Impronta non riconosciuta, usa il PIN.'); };
+  if (b('#pinAnnulla')) b('#pinAnnulla').onclick = togliBlocco;
+  if (b('#pinScordato')) b('#pinScordato').onclick = () => { if (window.confirm('Rientra con email e password e scegli un nuovo PIN?')) azzeraPinEdEsci('scordato'); };
+  if (b('#bioOut')) b('#bioOut').onclick = () => { if (window.confirm('Vuoi davvero uscire dall’app?')) { togliBlocco(); auth.signOut(); } };
 }
+
+// Dopo 5 minuti con l'app in background, al ritorno chiede di nuovo il PIN.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { ssSet('nascosta_dal', String(Date.now())); return; }
+  const dal = Number(ssGet('nascosta_dal') || 0);
+  ssSet('nascosta_dal', null);
+  if (S.user && sbloccataQuesta() && pinImpostato() && dal && Date.now() - dal > BLOCCO_DOPO_MS) mostraBlocco('sblocca');
+});
 
 // ===================== AVVIO, NOTIFICHE, INSTALLAZIONE =====================
 // Dopo il primo caricamento dei dati: promemoria e apertura da notifica (?app=ID).
@@ -3886,6 +3982,16 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 // ===================== AUTENTICAZIONE =====================
 const configMancante = FIREBASE_CONFIG.apiKey === 'INSERIRE';
 let auth = null, db = null;
+let appEntrata = false;
+// Mostra l'app e carica i dati solo dopo il PIN (o l'impronta).
+function entraNellApp() {
+  $('#app').hidden = false;
+  if (appEntrata) return;
+  appEntrata = true;
+  armaIndietro();
+  attachListeners();
+  render();
+}
 
 if (configMancante) {
   $('#configBanner').hidden = false;
@@ -3899,12 +4005,18 @@ if (configMancante) {
     S.user = u;
     if (u) {
       $('#login').hidden = true;
-      $('#app').hidden = false;
-      if (lsGet('bio_id') && !bioSbloccatoQuesta()) mostraBlocco();
-      armaIndietro();
-      attachListeners();
-      render();
+      const fresco = ssGet('login_fresco') === '1';
+      ssSet('login_fresco', null);
+      if (!pinImpostato()) {
+        // Sessione vecchia senza PIN: prima email e password, poi si sceglie il PIN.
+        if (!fresco) { ssSet('motivo_login', 'nuovo'); auth.signOut(); return; }
+        mostraBlocco('crea');
+      } else if (fresco || sbloccataQuesta()) sbloccaApp();
+      else mostraBlocco('sblocca');
     } else {
+      appEntrata = false;
+      ssSet('app_sbloccata', null);
+      togliBlocco();
       detachListeners();
       while (livelli.length) closeModal();
       $('#main').innerHTML = '';
@@ -3912,6 +4024,13 @@ if (configMancante) {
       $('#app').hidden = true;
       const lf = document.querySelector('#login form'); if (lf) { lf.reset(); lf.querySelector('[name=password]').value = ''; }
       $('#login').hidden = false;
+      const motivo = ssGet('motivo_login');
+      const avvisi = {
+        nuovo: 'Per sicurezza accedi con email e password: poi sceglierai un PIN per questo dispositivo.',
+        tentativi: 'Troppi PIN sbagliati: accedi con email e password e scegli un nuovo PIN.',
+        scordato: 'Accedi con email e password e scegli un nuovo PIN.'
+      };
+      $('#loginErr').textContent = avvisi[motivo] || '';
     }
   });
 
@@ -3923,8 +4042,11 @@ if (configMancante) {
     btn.disabled = true;
     btn.textContent = 'Accesso in corso…';
     try {
+      ssSet('login_fresco', '1');
+      ssSet('motivo_login', null);
       await auth.signInWithEmailAndPassword(f.email.value.trim(), f.password.value);
     } catch (err) {
+      ssSet('login_fresco', null);
       $('#loginErr').textContent = 'Accesso non riuscito. Controlla email e password.';
     } finally {
       btn.disabled = false;
