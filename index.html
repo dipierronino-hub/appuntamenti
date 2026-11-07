@@ -486,7 +486,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.45}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.18.1';
+const APP_VERSION = '2.19.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1350,6 +1350,221 @@ function esportaIcs() {
   toast('File del calendario scaricato');
 }
 
+// ===================== BACKUP E RIPRISTINO =====================
+// Il backup contiene tutto ciò che l'utente ha in users/<uid> (contatti, appuntamenti, impostazioni...).
+// Non contiene i dati dell'app Assegni (altro progetto Firebase).
+// Il ripristino unisce per codice (id): aggiunge o sostituisce, non cancella mai nulla.
+const BACKUP_APP = 'Appuntamenti';
+const BACKUP_TIPO = 'backup-completo';
+// Si ripristinano solo contatti, appuntamenti e impostazioni. push, pushProva e pushInviati riguardano
+// i singoli dispositivi e le notifiche già inviate: restano nel file ma non si riscrivono.
+const STATI_VALIDI = ['programmato', 'confermato', 'completato', 'annullato'];
+const BACKUP_GIORNI_PROMEMORIA = 30;
+
+const contaNodo = o => (o && typeof o === 'object' ? Object.keys(o).length : 0);
+const dataBreve = iso => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+function creaBackup(dati, uid, quando = new Date()) {
+  const d = dati && typeof dati === 'object' ? dati : {};
+  return {
+    app: BACKUP_APP, tipo: BACKUP_TIPO, formato: 1, versione: APP_VERSION,
+    esportato: quando.toISOString(), uid,
+    conteggi: { contatti: contaNodo(d.contatti), appuntamenti: contaNodo(d.appuntamenti) },
+    dati: d
+  };
+}
+
+// Legge il testo del file: { ok, backup } oppure { ok: false, msg }.
+function leggiBackup(testo, uid) {
+  let b;
+  try { b = JSON.parse(testo); } catch (e) { return { ok: false, msg: 'Il file non è un backup valido (non si riesce a leggere)' }; }
+  if (!b || typeof b !== 'object' || b.app !== BACKUP_APP || b.tipo !== BACKUP_TIPO || !b.dati || typeof b.dati !== 'object' || Array.isArray(b.dati)) {
+    return { ok: false, msg: 'Questo file non è un backup dell’app Appuntamenti' };
+  }
+  if (!Number.isFinite(Date.parse(b.esportato))) return { ok: false, msg: 'Il backup non è valido: manca la data di esportazione' };
+  if (b.uid !== uid) return { ok: false, msg: 'Attenzione: questo backup appartiene a un altro account. Ripristino non consentito.' };
+  return { ok: true, backup: b };
+}
+
+// Firebase non accetta chiavi vuote o con . # $ [ ] /
+const chiaveValida = k => typeof k === 'string' && k.length > 0 && k.length <= 768 && !/[.#$[\]/\u0000-\u001f\u007f]/.test(k);
+function chiaviValide(v, prof = 0) {
+  if (v === null || typeof v !== 'object') return typeof v !== 'number' || Number.isFinite(v);
+  if (prof > 30) return false;
+  return Object.entries(v).every(([k, x]) => chiaveValida(k) && chiaviValide(x, prof + 1));
+}
+// Per le regole un figlio esiste solo se non è vuoto.
+const presente = v => v !== null && v !== undefined && v !== '' && !(typeof v === 'object' && !Object.keys(v).length);
+
+// Stesse condizioni delle regole del database (firebase.rules.json). Restituisce il motivo dello scarto o ''.
+function motivoContattoNonValido(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return 'dati non leggibili';
+  if (typeof c.nome !== 'string' || c.nome.length < 1) return 'manca il nome';
+  if (c.nome.length > 120) return 'nome troppo lungo (oltre 120 caratteri)';
+  if (!chiaviValide(c)) return 'contiene campi non validi';
+  return '';
+}
+function motivoAppuntamentoNonValido(a) {
+  if (!a || typeof a !== 'object' || Array.isArray(a)) return 'dati non leggibili';
+  const mancanti = ['contattoId', 'data', 'ora', 'stato'].filter(k => !presente(a[k]));
+  if (mancanti.length) return 'manca ' + mancanti.map(k => k === 'contattoId' ? 'il contatto' : k === 'data' ? 'la data' : k === 'ora' ? 'l’ora' : 'lo stato').join(', ');
+  if (!STATI_VALIDI.includes(a.stato)) return 'stato non valido';
+  if (!chiaviValide(a)) return 'contiene campi non validi';
+  return '';
+}
+
+// Prepara l'aggiornamento multi-percorso (relativo a users/<uid>) e l'elenco dei record scartati.
+function preparaRipristino(dati, attuali = {}) {
+  const updates = {}, scartati = [];
+  const conta = { contatti: 0, appuntamenti: 0, impostazioni: 0, nuovi: 0, sostituiti: 0 };
+  const segna = (nodo, id) => { conta[nodo]++; if (attuali[nodo]?.[id] !== undefined) conta.sostituiti++; else conta.nuovi++; };
+  const contatti = dati.contatti && typeof dati.contatti === 'object' ? dati.contatti : {};
+  const apps = dati.appuntamenti && typeof dati.appuntamenti === 'object' ? dati.appuntamenti : {};
+  const nomeContatto = id => (typeof contatti[id]?.nome === 'string' && contatti[id].nome) || (typeof attuali.contatti?.[id]?.nome === 'string' && attuali.contatti[id].nome) || '';
+
+  for (const [id, c] of Object.entries(contatti)) {
+    const nome = typeof c?.nome === 'string' && c.nome.trim() ? c.nome.trim().slice(0, 60) : `senza nome (${id})`;
+    const motivo = chiaveValida(id) ? motivoContattoNonValido(c) : 'codice non valido';
+    if (motivo) { scartati.push({ tipo: 'Contatto', nome, motivo }); continue; }
+    updates['contatti/' + id] = c;
+    segna('contatti', id);
+  }
+  for (const [id, a] of Object.entries(apps)) {
+    const chi = typeof a?.contattoId === 'string' ? nomeContatto(a.contattoId) : '';
+    const quando = [typeof a?.data === 'string' ? (/^\d{4}-\d{2}-\d{2}$/.test(a.data) ? dataBreve(a.data + 'T12:00:00') : a.data) : '', typeof a?.ora === 'string' ? a.ora : ''].filter(Boolean).join(' ');
+    const nome = [quando, chi || (typeof a?.motivo === 'string' && a.motivo) || ''].filter(Boolean).join(' · ') || `appuntamento ${id}`;
+    const motivo = chiaveValida(id) ? motivoAppuntamentoNonValido(a) : 'codice non valido';
+    if (motivo) { scartati.push({ tipo: 'Appuntamento', nome, motivo }); continue; }
+    updates['appuntamenti/' + id] = a;
+    segna('appuntamenti', id);
+  }
+  const imp = dati.impostazioni;
+  if (imp && typeof imp === 'object' && !Array.isArray(imp)) {
+    for (const [k, v] of Object.entries(imp)) {
+      if (!chiaveValida(k) || !chiaviValide(v) || v === null) { scartati.push({ tipo: 'Impostazione', nome: String(k), motivo: 'non valida' }); continue; }
+      updates['impostazioni/' + k] = v;
+      conta.impostazioni++;
+    }
+  }
+  return { updates, scartati, conta };
+}
+
+function scaricaFile(testo, nome, tipo) {
+  const url = URL.createObjectURL(new Blob([testo], { type: tipo }));
+  const link = Object.assign(document.createElement('a'), { href: url, download: nome, rel: 'noopener' });
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000); // iPhone apre l'anteprima con calma
+}
+
+const chiaveUltimoBackup = () => 'backup_ultimo_' + (S.user?.uid || '');
+
+// Scarica il backup completo. Restituisce true se il file è stato preparato.
+async function scaricaBackup(prefisso = 'appuntamenti-backup') {
+  if (!S.user) return false;
+  try {
+    const snap = await userRef().once('value');
+    const b = creaBackup(snap.val() || {}, S.user.uid);
+    scaricaFile(JSON.stringify(b, null, 2), `${prefisso}-${todayISO()}.json`, 'application/json');
+    lsSet(chiaveUltimoBackup(), b.esportato);
+    toast(`Backup scaricato: ${plurale(b.conteggi.contatti, 'contatto', 'contatti')}, ${plurale(b.conteggi.appuntamenti, 'appuntamento', 'appuntamenti')}`);
+    render();
+    return true;
+  } catch (err) {
+    toast('Backup non riuscito: ' + err.message);
+    return false;
+  }
+}
+
+function statoUltimoBackup() {
+  const iso = lsGet(chiaveUltimoBackup());
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return { testo: 'Nessun backup scaricato da questo dispositivo', vecchio: true };
+  const giorni = Math.floor((Date.now() - t) / 86400000);
+  return { testo: 'Ultimo backup: ' + dataBreve(iso), vecchio: giorni > BACKUP_GIORNI_PROMEMORIA, giorni };
+}
+
+// Il selettore di file va aperto subito dal tocco (iPhone lo blocca altrimenti).
+function scegliBackup() {
+  const input = Object.assign(document.createElement('input'), { type: 'file' });
+  input.style.display = 'none';
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    input.remove();
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) { toast('File troppo grande per essere un backup'); return; }
+    let testo;
+    try { testo = await file.text(); } catch (e) { toast('Impossibile leggere il file'); return; }
+    const r = leggiBackup(testo, S.user?.uid);
+    if (!r.ok) { toast(r.msg); return; }
+    openRipristino(r.backup);
+  });
+  document.body.appendChild(input);
+  input.click();
+}
+
+function elencoScartati(scartati) {
+  if (!scartati.length) return '';
+  const max = 30;
+  return `<div class="avviso">${icon('warn', 18)}<div><strong>${plurale(scartati.length, 'record non valido verrà saltato', 'record non validi verranno saltati')}:</strong><br>${scartati.slice(0, max).map(s => `${esc(s.tipo)} ${esc(s.nome)} – ${esc(s.motivo)}`).join('<br>')}${scartati.length > max ? `<br>…e altri ${scartati.length - max}` : ''}</div></div>`;
+}
+
+function openRipristino(b) {
+  const p = preparaRipristino(b.dati, { contatti: S.contatti, appuntamenti: S.appuntamenti });
+  const nC = contaNodo(b.dati.contatti), nA = contaNodo(b.dati.appuntamenti);
+  const daScrivere = Object.keys(p.updates).length;
+  let copiaFatta = false;
+  openModal(`
+    <h2>Ripristina backup</h2>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="riga glass"><span class="ico">${icon('file', 20)}</span>
+        <div class="testo"><div class="card-title">${plurale(nC, 'contatto', 'contatti')}, ${plurale(nA, 'appuntamento', 'appuntamenti')}</div>
+          <div class="card-meta">Backup del ${esc(dataBreve(b.esportato))} · versione ${esc(b.versione || '?')}</div></div></div>
+      <p class="muted" style="margin:0">Verranno scritti ${plurale(p.conta.contatti, 'contatto', 'contatti')} e ${plurale(p.conta.appuntamenti, 'appuntamento', 'appuntamenti')}: ${plurale(p.conta.nuovi, 'nuovo', 'nuovi')}, ${p.conta.sostituiti} già presenti che tornano come nel backup. Nulla viene cancellato: quello che hai aggiunto dopo il backup resta.</p>
+      ${elencoScartati(p.scartati)}
+      <button type="button" class="btn btn-secondary" id="copiaPrima">${icon('download', 16)} Scarica prima una copia dei dati attuali</button>
+      <div class="actions">
+        <button type="button" class="btn btn-secondary" data-act="chiudi">Annulla</button>
+        <button type="button" class="btn btn-primary" id="confermaRipristino" ${daScrivere ? '' : 'disabled'}>Ripristina</button>
+      </div>
+    </div>`, m => {
+    m.querySelector('#copiaPrima').addEventListener('click', async e => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      copiaFatta = await scaricaBackup('appuntamenti-prima-del-ripristino') || copiaFatta;
+      btn.disabled = false;
+      if (copiaFatta) btn.innerHTML = `${icon('check', 16)} Copia dei dati attuali scaricata`;
+    });
+    m.querySelector('#confermaRipristino').addEventListener('click', async e => {
+      if (!copiaFatta && !window.confirm('Non hai scaricato una copia dei dati attuali. Vuoi ripristinare comunque?')) return;
+      if (!window.confirm(`Confermi il ripristino di ${plurale(daScrivere, 'elemento', 'elementi')} dal backup del ${dataBreve(b.esportato)}?`)) return;
+      e.currentTarget.disabled = true;
+      await eseguiRipristino(p);
+    });
+  });
+}
+
+// Un solo aggiornamento multi-percorso: o viene scritto tutto, o non viene scritto nulla.
+async function eseguiRipristino(p) {
+  let esito;
+  try {
+    await userRef().update(p.updates);
+    esito = `<p style="margin:0">Ripristinati ${plurale(p.conta.contatti, 'contatto', 'contatti')} e ${plurale(p.conta.appuntamenti, 'appuntamento', 'appuntamenti')}${p.conta.impostazioni ? ' e le impostazioni' : ''}.</p>${elencoScartati(p.scartati).replace('verranno saltati', 'sono stati saltati').replace('verrà saltato', 'è stato saltato')}`;
+    toast('Ripristino completato');
+    vibra('ok');
+  } catch (err) {
+    esito = `<div class="avviso">${icon('warn', 18)}<div><strong>Ripristino non riuscito: non è stato scritto nulla.</strong><br>I tuoi dati sono rimasti come prima.<br><small>${esc(err.message)}</small></div></div>`;
+    toast('Errore: ripristino non riuscito, nessun dato modificato');
+    vibra('err');
+  }
+  closeModal();
+  openModal(`<h2>Ripristino</h2><div style="display:flex;flex-direction:column;gap:12px">${esito}
+    <div class="actions"><button type="button" class="btn btn-primary" data-act="chiudi">Chiudi</button></div></div>`);
+  render();
+}
+// ===================== FINE BACKUP E RIPRISTINO =====================
+
 // ===================== PROMEMORIA =====================
 // Notifiche locali: arrivano mentre l'app è aperta o resta attiva in background.
 // Ogni appuntamento ha 'promemoria' (minuti di anticipo, 0 = nessuno).
@@ -1931,6 +2146,7 @@ function renderImpostazioni() {
   const segTema = (v, t) => `<button type="button" data-act="tema" data-t="${v}" aria-pressed="${tema === v}">${t}</button>`;
   const permesso = notificheSupportate() ? Notification.permission : 'non disponibile';
   const nProm = prossimiPromemoria(1).length;
+  const backupInfo = statoUltimoBackup();
   $('#main').innerHTML = `<div class="view">
     <div class="head"><div><div class="card-kicker">${esc(S.user?.email || '')}</div><h1>Impostazioni</h1></div></div>
 
@@ -1948,7 +2164,18 @@ function renderImpostazioni() {
           <div class="testo"><div class="card-title">Esporta per Google Calendar</div>
             <div class="card-meta">File .ics da importare in Google Calendar o in un altro calendario</div></div>
         </div>
+        <div class="riga cliccabile" data-act="backup" role="button" tabindex="0">
+          <span class="ico">${icon('download', 20)}</span>
+          <div class="testo"><div class="card-title">💾 Scarica backup completo</div>
+            <div class="card-meta">Contatti e appuntamenti in un file da conservare · ${esc(backupInfo.testo)}</div></div>
+        </div>
+        <div class="riga cliccabile" data-act="ripristina" role="button" tabindex="0">
+          <span class="ico">${icon('up', 20)}</span>
+          <div class="testo"><div class="card-title">📂 Ripristina backup</div>
+            <div class="card-meta">Recupera i dati da un file di backup, senza cancellare nulla</div></div>
+        </div>
       </div>
+      ${backupInfo.vecchio ? `<div class="avviso">${icon('warn', 18)}<div>${backupInfo.giorni ? `Sono passati ${backupInfo.giorni} giorni dall’ultimo backup.` : 'Non hai ancora scaricato un backup da questo dispositivo.'} Ti consigliamo di scaricarne uno e di conservarlo (per esempio su Google Drive o via email).</div></div>` : ''}
     </div>
 
     <div class="sezione">
@@ -3688,7 +3915,9 @@ const ACTIONS = {
   attivaPush: async () => { toast(await iscriviPush() ? 'Notifiche push collegate' : 'Collegamento non riuscito, riprova'); aggiornaLivello(); render(); },
   provaPush: () => provaPush(),
   provaNotifica: () => mostraNotifica({ id: 'prova', ora: oraAdesso(), data: todayISO(), motivo: 'Notifica di prova', contatto: {} }),
-  ics: () => esportaIcs()
+  ics: () => esportaIcs(),
+  backup: () => scaricaBackup(),
+  ripristina: () => scegliBackup()
 };
 
 // Vibrazione leggera sui pulsanti principali (fase di cattura: arriva prima di ogni altra azione).
