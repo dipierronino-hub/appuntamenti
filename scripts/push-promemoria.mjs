@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Invia le notifiche push dei promemoria, anche quando l'app sul telefono è chiusa.
-// Lo esegue GitHub Actions ogni 5 minuti (.github/workflows/promemoria-push.yml).
+// Lo esegue GitHub Actions ogni 2 minuti (.github/workflows/promemoria-push.yml).
 //
 //   node scripts/push-promemoria.mjs          invia i promemoria arrivati all'ora giusta
 //   node scripts/push-promemoria.mjs --prova  mostra cosa invierebbe, senza inviare né scrivere
@@ -31,8 +31,8 @@ function esci(msg) {
 if (!SECRET) esci('Manca FIREBASE_DB_SECRET');
 
 // Come in atlantis-sync.mjs: curl usa il proxy dell'ambiente, se c'è.
-function richiesta(metodo, percorso, corpo) {
-  const url = `${DB}/${percorso}.json?auth=${encodeURIComponent(SECRET)}`;
+function richiesta(metodo, percorso, corpo, extra) {
+  const url = `${DB}/${percorso}.json?auth=${encodeURIComponent(SECRET)}${extra ? '&' + extra : ''}`;
   const args = ['-sS', '--fail-with-body', '-X', metodo, url];
   if (corpo !== undefined) args.push('-H', 'Content-Type: application/json', '--data-binary', '@-');
   try {
@@ -84,7 +84,7 @@ function riepilogo(u, oggi) {
     .sort((x, y) => String(x.ora).localeCompare(String(y.ora)));
   if (!lista.length) return { titolo: 'Buongiorno, oggi nessun appuntamento', corpo: 'Giornata libera', id: '' };
   const righe = lista.map(a => {
-    const nome = u.contatti?.[a.contattoId]?.nome;
+    const nome = nomeContatto(u.uid, a.contattoId);
     const soldi = Number(a.importo) > 0 ? ` (${a.movimento === 'uscita' ? '-' : '+'}${euro(a.importo)})` : '';
     return `${a.ora} ${[a.motivo, nome].filter(Boolean).join(' · ') || 'Appuntamento'}${soldi}`;
   });
@@ -113,7 +113,26 @@ webpush.setVapidDetails(vapid.soggetto || 'https://dipierronino-hub.github.io/ap
 
 const ora = Date.now();
 const roma = adessoRoma(ora);
-const utenti = richiesta('GET', 'users') || {};
+// Legge solo le parti che servono (non tutti i contatti), così il controllo può girare spesso.
+const utenti = {};
+for (const uid of Object.keys(richiesta('GET', 'users', undefined, 'shallow=true') || {})) {
+  const push = richiesta('GET', `users/${uid}/push`) || {};
+  if (!Object.keys(push).length) continue;
+  utenti[uid] = {
+    uid, push,
+    pushInviati: richiesta('GET', `users/${uid}/pushInviati`),
+    pushProva: richiesta('GET', `users/${uid}/pushProva`),
+    pushRiepilogo: richiesta('GET', `users/${uid}/pushRiepilogo`),
+    appuntamenti: richiesta('GET', `users/${uid}/appuntamenti`)
+  };
+}
+const nomi = {};
+function nomeContatto(uid, cid) {
+  if (!cid) return '';
+  const k = `${uid}/${cid}`;
+  if (!(k in nomi)) nomi[k] = richiesta('GET', `users/${uid}/contatti/${cid}/nome`) || '';
+  return nomi[k];
+}
 let inviati = 0;
 for (const [uid, u] of Object.entries(utenti)) {
   const iscrizioni = u.push || {};
@@ -138,7 +157,7 @@ for (const [uid, u] of Object.entries(utenti)) {
     const inizio = istanteRoma(a.data, a.ora);
     const firma = `${a.data} ${a.ora} ${anticipo}`;
     if (ora >= inizio - anticipo * 60000 && ora < inizio && fatti[aid] !== firma) {
-      inviati += await inviaATutti(uid, iscrizioni, messaggio({ ...a, id: aid }, u.contatti?.[a.contattoId]));
+      inviati += await inviaATutti(uid, iscrizioni, messaggio({ ...a, id: aid }, { nome: nomeContatto(uid, a.contattoId) }));
       aggiorna[`pushInviati/${aid}`] = firma;
     }
   }
