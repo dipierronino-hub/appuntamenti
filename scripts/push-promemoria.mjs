@@ -11,6 +11,7 @@
 //   users/<uid>/push/<id>        iscrizioni dei dispositivi (le salva l'app)
 //   users/<uid>/pushInviati/<id> firma "data ora anticipo" dei promemoria già inviati
 //   users/<uid>/pushProva        richiesta di notifica di prova (la scrive l'app)
+//   users/<uid>/pushRiepilogo    data (AAAA-MM-GG) dell'ultimo riepilogo del mattino inviato
 import { execFileSync } from 'node:child_process';
 import webpush from 'web-push';
 
@@ -20,6 +21,8 @@ const PROVA = process.argv.includes('--prova');
 const CHIUSI = ['completato', 'annullato'];
 // Uguale a promemoriaPredefinito() nell'app: si usa solo per appuntamenti senza anticipo salvato.
 const ANTICIPO_PREDEFINITO = 60;
+// Riepilogo del mattino: dalle 7:30 (ora italiana) una notifica con gli appuntamenti del giorno.
+const ORA_RIEPILOGO = '07:30';
 
 function esci(msg) {
   console.error(msg);
@@ -64,6 +67,30 @@ function messaggio(a, c) {
   };
 }
 
+// Data e ora di adesso in Italia, come 'AAAA-MM-GG' e 'HH:MM'.
+function adessoRoma(t) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Rome', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    .formatToParts(t).map(x => [x.type, x.value]));
+  return { data: `${p.year}-${p.month}-${p.day}`, ora: `${p.hour}:${p.minute}` };
+}
+
+const euro = n => Number(n).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
+// Testo del riepilogo: una riga per appuntamento ancora aperto, in ordine di ora.
+function riepilogo(u, oggi) {
+  const lista = Object.entries(u.appuntamenti || {})
+    .filter(([, a]) => a?.data === oggi && !CHIUSI.includes(a.stato))
+    .map(([, a]) => a)
+    .sort((x, y) => String(x.ora).localeCompare(String(y.ora)));
+  if (!lista.length) return { titolo: 'Buongiorno, oggi nessun appuntamento', corpo: 'Giornata libera', id: '' };
+  const righe = lista.map(a => {
+    const nome = u.contatti?.[a.contattoId]?.nome;
+    const soldi = Number(a.importo) > 0 ? ` (${a.movimento === 'uscita' ? '-' : '+'}${euro(a.importo)})` : '';
+    return `${a.ora} ${[a.motivo, nome].filter(Boolean).join(' · ') || 'Appuntamento'}${soldi}`;
+  });
+  return { titolo: `Buongiorno, oggi ${lista.length === 1 ? '1 appuntamento' : lista.length + ' appuntamenti'}`, corpo: righe.join('\n'), id: '' };
+}
+
 // Invia a tutti i dispositivi dell'utente; toglie le iscrizioni scadute (il telefono le ha revocate).
 async function inviaATutti(uid, iscrizioni, contenuto) {
   let ok = 0;
@@ -85,6 +112,7 @@ if (!vapid?.publicKey || !vapid?.privateKey) esci('Chiavi VAPID mancanti in /ser
 webpush.setVapidDetails(vapid.soggetto || 'https://dipierronino-hub.github.io/appuntamenti/', vapid.publicKey, vapid.privateKey);
 
 const ora = Date.now();
+const roma = adessoRoma(ora);
 const utenti = richiesta('GET', 'users') || {};
 let inviati = 0;
 for (const [uid, u] of Object.entries(utenti)) {
@@ -96,6 +124,11 @@ for (const [uid, u] of Object.entries(utenti)) {
   if (u.pushProva) {
     inviati += await inviaATutti(uid, iscrizioni, { titolo: 'Notifica di prova', corpo: 'Le notifiche push funzionano anche ad app chiusa', id: '' });
     aggiorna.pushProva = null;
+  }
+
+  if (roma.ora >= ORA_RIEPILOGO && u.pushRiepilogo !== roma.data) {
+    inviati += await inviaATutti(uid, iscrizioni, riepilogo(u, roma.data));
+    aggiorna.pushRiepilogo = roma.data;
   }
 
   for (const [aid, a] of Object.entries(u.appuntamenti || {})) {
