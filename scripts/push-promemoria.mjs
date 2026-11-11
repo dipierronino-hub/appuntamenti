@@ -21,8 +21,8 @@ const PROVA = process.argv.includes('--prova');
 const CHIUSI = ['completato', 'annullato'];
 // Uguale a promemoriaPredefinito() nell'app: si usa solo per appuntamenti senza anticipo salvato.
 const ANTICIPO_PREDEFINITO = 60;
-// Riepilogo del mattino: dalle 7:30 (ora italiana) una notifica con gli appuntamenti del giorno.
-const ORA_RIEPILOGO = '07:30';
+// Riepilogo del mattino: dalle 8:10 (ora italiana) una notifica con gli appuntamenti del giorno.
+const ORA_RIEPILOGO = '08:10';
 
 function esci(msg) {
   console.error(msg);
