@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1220">
+<meta name="theme-color" content="#1a2435">
 <title>Appuntamenti</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -18,12 +18,12 @@
    ===================================================================== */
 :root{
   /* Superfici */
-  --color-bg:#0b1220;--color-bg-2:#121b2c;--surface:#121b2c;--surface-2:#182337;--surface-3:#1f2b42;
+  --color-bg:#1a2435;--color-bg-2:#222d41;--surface:#222d41;--surface-2:#29354b;--surface-3:#313e56;
   --bg:var(--color-bg);
   /* Testo */
-  --color-text:#e9eef6;--color-muted:#9aa7bb;--color-faint:#6c7a90;
+  --color-text:#eef2f8;--color-muted:#a9b5c7;--color-faint:#7f8ca2;
   /* Linee */
-  --color-divider:#1f2a3e;--glass-border:#24314a;--glass-hi:#2e3d59;--border-strong:#34445f;
+  --color-divider:#2c384e;--glass-border:#36435c;--glass-hi:#425069;--border-strong:#4d5c77;
   /* Brand */
   --accent:#4f86f7;--accent-hover:#6a99fa;--accent-2:#60a5fa;--accent-text:#8fb4ff;
   --accent-soft:rgba(79,134,247,.14);--accent-ring:rgba(79,134,247,.35);
@@ -487,6 +487,79 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
   .page-body{padding-inline:24px}
 }
 @media (hover:none){.app-item:hover .box{box-shadow:var(--shadow-card);border-color:var(--glass-border)}}
+
+/* ===== PROPOSTA 2.20 "Agenda a colpo d'occhio" ===== */
+/* Fascia colorata in alto con data e settimana */
+.banda{margin:calc(-16px - env(safe-area-inset-top)) -16px 0;padding:calc(18px + env(safe-area-inset-top)) 16px 18px;background:var(--accent);color:#fff;border-radius:0 0 26px 26px;display:flex;flex-direction:column;gap:16px;box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 30%,transparent)}
+:root[data-theme="light"] .banda{background:#2f6bed}
+.banda .head .card-kicker{color:rgba(255,255,255,.8)}
+.banda .head h1{color:#fff}
+.banda .toggle{background:rgba(255,255,255,.16)!important;border-color:transparent!important}
+.banda .toggle button{color:#fff!important}
+.banda .toggle button[aria-pressed="true"]{background:#fff!important;color:var(--accent)!important}
+.banda .btn-ghost.btn-icon{color:#fff}
+.banda .btn-ghost.btn-icon:hover{background:rgba(255,255,255,.14)}
+.banda .sett-lbl{color:rgba(255,255,255,.85)!important}
+.banda .chip-oggi{background:#fff!important;color:var(--accent)!important;border-color:#fff!important}
+.banda .week-day{background:rgba(255,255,255,.12);border-color:transparent;color:#fff;box-shadow:none}
+.banda .week-day .wd{color:rgba(255,255,255,.75)}
+.banda .week-day.oggi{box-shadow:inset 0 0 0 2px rgba(255,255,255,.7)}
+.banda .week-day.oggi .wn,.banda .week-day.oggi .wd{color:#fff}
+.banda .week-day.sel{background:#fff;color:var(--accent);box-shadow:0 6px 16px rgba(0,0,0,.18)}
+.banda .week-day.sel .wd{color:var(--accent)}
+.banda .week-day.sel .wn{color:var(--accent);-webkit-text-fill-color:var(--accent)}
+.banda .week-day.has .dot{background:#fff}
+.banda .week-day.sel.has .dot{background:var(--accent)}
+/* Prossimo appuntamento in evidenza */
+.prossimo{border-radius:22px;padding:16px;background:var(--surface);border:1px solid var(--glass-border);box-shadow:var(--shadow-md);display:flex;flex-direction:column;gap:12px;cursor:pointer;position:relative;overflow:hidden}
+.prossimo::before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:var(--st-warn)}
+.prossimo .p-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.prossimo .p-quando{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--st-warn)}
+.prossimo .p-quando::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;animation:nowPulse 1.6s infinite}
+.prossimo .p-ora{font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.prossimo .p-ora small{font-size:15px;font-weight:600;color:var(--color-muted);margin-left:6px;letter-spacing:0}
+.prossimo .p-chi{display:flex;align-items:center;gap:12px}
+.prossimo .p-chi .card-title{font-size:18px}
+.prossimo .p-az{display:grid;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px}
+.prossimo .p-az a{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 4px;border-radius:14px;text-decoration:none;font-size:12.5px;font-weight:650;color:#fff}
+.prossimo .p-az .r-tel{background:#16a34a}
+.prossimo .p-az .r-wa{background:#22b765}
+.prossimo .p-az .r-map{background:#2563eb}
+/* Riepilogo del giorno in tre caselle */
+.riep{display:grid;grid-template-columns:minmax(0,.62fr) minmax(0,1fr) minmax(0,1fr);gap:8px}
+.riep>div{border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.riep span{font-size:10.5px;white-space:nowrap;font-weight:650;letter-spacing:.03em;text-transform:uppercase;opacity:.85}
+.riep b{font-size:17px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.riep .r-n{background:var(--accent-soft);color:var(--accent-text)}
+.riep .r-in{background:var(--in-bg);color:var(--in)}
+.riep .r-out{background:var(--out-bg);color:var(--out)}
+/* Schede degli appuntamenti: linea del giorno, avatar, importo grande */
+.lista2{position:relative;display:flex;flex-direction:column;gap:14px}
+.lista2::before{content:"";position:absolute;left:7px;top:18px;bottom:18px;width:2px;border-radius:2px;background:var(--glass-border)}
+.app-item.v2{grid-template-columns:58px minmax(0,1fr);gap:8px}
+.app-item.v2 .tcol{position:relative;padding:14px 0 0 22px}
+.app-item.v2 .tcol::before{content:"";position:absolute;left:2px;top:17px;width:12px;height:12px;border-radius:50%;background:var(--color-bg);border:3px solid var(--st-c,var(--accent))}
+.app-item.v2 .ora1{padding-top:0;font-size:16px}
+.app-item.v2 .box{padding:14px;gap:10px;border-radius:18px}
+.app-item.v2 .box::before{display:none}
+.app-item.v2 .box[data-mov="entrata"]{background:color-mix(in srgb,var(--in) 8%,var(--surface));border-color:color-mix(in srgb,var(--in) 28%,var(--glass-border))}
+.app-item.v2 .box[data-mov="uscita"]{background:color-mix(in srgb,var(--out) 8%,var(--surface));border-color:color-mix(in srgb,var(--out) 28%,var(--glass-border))}
+.app-item.v2 .r1{display:flex;gap:12px;align-items:center;min-width:0}
+.app-item.v2 .r1 .avatar{width:40px;height:40px;font-size:14px}
+.app-item.v2 .r1>div:last-child{min-width:0;flex:1}
+.app-item.v2 .card-meta{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app-item.v2 .r2{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.app-item.v2 .r2 .tags{display:flex;gap:4px;flex-wrap:wrap}
+.app-item.v2 .imp{font-size:20px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.app-item.v2 .rapide{margin-top:0}
+.app-item.v2 .rapide>a{width:40px;height:40px;border-radius:12px}
+.app-item.v2[data-sc="programmato"]{--st-c:var(--st-prog)}
+.app-item.v2[data-sc="confermato"]{--st-c:var(--st-conf)}
+.app-item.v2[data-sc="completato"]{--st-c:var(--st-comp)}
+.app-item.v2[data-sc="annullato"]{--st-c:var(--st-ann)}
+/* Pulsante "Nuovo" con la scritta */
+.fab.add{width:auto;padding:0 20px 0 16px;gap:6px;grid-auto-flow:column;border-radius:var(--r-pill);font-weight:700;font-size:15px}
+.fab.add::after{content:"Nuovo"}
 </style>
 </head>
 <body>
@@ -531,7 +604,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.19.3';
+const APP_VERSION = '2.19.4';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1321,7 +1394,7 @@ function vibra(tipo = 'tocco') {
 function applicaTema(t) {
   const scuro = t === 'scuro' || (t === 'auto' && !matchMedia('(prefers-color-scheme: light)').matches);
   document.documentElement.dataset.theme = scuro ? 'dark' : 'light';
-  $('meta[name="theme-color"]').content = scuro ? '#0b1220' : '#f5f6f8';
+  $('meta[name="theme-color"]').content = scuro ? '#1a2435' : '#f5f6f8';
 }
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', () => applicaTema(lsGet('tema') || 'scuro'));
 
@@ -1738,20 +1811,53 @@ function render() {
 function voceApp(a) {
   const c = a.contatto;
   const spento = a.stato === 'annullato' || (a.data === todayISO() && passato(a)) || a.data < todayISO();
-  const meta = [c.nome || '(contatto eliminato)', a.luogo].filter(Boolean).map(esc).join('</span><span>·</span><span>');
+  const meta = [a.azienda || '', c.nome || '(contatto eliminato)', a.luogo].filter(Boolean).map(esc).join(' · ');
   const inRitardo = a.data < todayISO() && !CHIUSI.includes(a.stato);
-  return `<div class="app-item${spento ? ' spento' : ''}" data-act="apri" data-id="${esc(a.id)}" role="button" tabindex="0">
-    <div style="padding-top:12px"><div class="ora1">${esc(a.ora)}</div><div class="ora2" aria-label="fine ${esc(fineApp(a))}">${esc(fineApp(a))}</div></div>
-    <div class="box glass" data-stato="${esc(a.stato)}"${inRitardo ? ' data-ritardo' : ''}>
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <span class="card-kicker" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.azienda || plurale(Number(a.durata) || 30, 'minuto', 'minuti'))}</span>
-        <span style="display:flex;gap:4px">${a.rinvii ? `<span class="tag tag-warn">${esc(a.rinvii)}× rinviato</span>` : ''}${inRitardo ? '<span class="tag tag-bad">in ritardo</span>' : ''}${tagStato(a)}</span>
+  const mov = conPagamento(a) && haImporto(a) ? movimentoDi(a) : '';
+  return `<div class="app-item v2${spento ? ' spento' : ''}" data-sc="${esc(a.stato)}" data-act="apri" data-id="${esc(a.id)}" role="button" tabindex="0">
+    <div class="tcol"><div class="ora1">${esc(a.ora)}</div><div class="ora2" aria-label="fine ${esc(fineApp(a))}">${esc(fineApp(a))}</div></div>
+    <div class="box glass" data-stato="${esc(a.stato)}"${mov ? ` data-mov="${mov}"` : ''}${inRitardo ? ' data-ritardo' : ''}>
+      <div class="r1">
+        <div class="avatar" data-t="${tintaAvatar(c.nome)}" aria-hidden="true">${esc(iniziali(c.nome || '?'))}</div>
+        <div><div class="card-title" style="text-decoration:${a.stato === 'annullato' ? 'line-through' : 'none'};overflow-wrap:anywhere">${esc(a.motivo || c.nome || 'Appuntamento')}</div>
+        <div class="card-meta">${meta}</div></div>
       </div>
-      <div class="card-title" style="text-decoration:${a.stato === 'annullato' ? 'line-through' : 'none'};overflow-wrap:anywhere">${esc(a.motivo || c.nome || 'Appuntamento')}</div>
-      <div class="card-meta" style="flex-wrap:wrap"><span>${meta}</span></div>
-      ${rigaRapide(a, c)}
+      <div class="r2">
+        <span class="tags">${a.rinvii ? `<span class="tag tag-warn">${esc(a.rinvii)}× rinviato</span>` : ''}${inRitardo ? '<span class="tag tag-bad">in ritardo</span>' : ''}${tagStato(a)}${tagPagamento(a)}</span>
+        ${mov ? `<span class="imp" style="color:${coloreMov(a)}">${esc(importoFirmato(a))}</span>` : ''}
+      </div>
+      ${a.stato === 'annullato' ? '' : rapide(c, a)}
     </div>
   </div>`;
+}
+
+// Proposta: riquadro del prossimo appuntamento di oggi, con pulsanti grandi.
+function prossimoInEvidenza(attivi) {
+  const ora = Date.now();
+  const x = attivi.find(a => !CHIUSI.includes(a.stato) && istante(a.data, a.ora) + (Number(a.durata) || 30) * 60000 > ora);
+  if (!x) return '';
+  const c = x.contatto;
+  const diff = Math.round((istante(x.data, x.ora) - ora) / 60000);
+  const quando = diff <= 0 ? 'In corso adesso' : diff < 60 ? `Prossimo · tra ${diff} min` : `Prossimo · tra ${Math.floor(diff / 60)} h${diff % 60 ? ' ' + (diff % 60) + ' min' : ''}`;
+  const b = [];
+  if (c.telefono) {
+    b.push(`<a class="r-tel" data-act="rapida" href="tel:${esc(c.telefono)}">${icon('phone', 20)}Chiama</a>`);
+    b.push(`<a class="r-wa" data-act="rapida" href="${esc(linkWhatsApp(c.telefono, messaggioWhatsApp(x, c)))}" target="_blank" rel="noopener">${icon('chat', 20)}WhatsApp</a>`);
+  }
+  if (x.luogo) b.push(`<a class="r-map" data-act="rapida" href="${esc(linkNavigazione(x.luogo))}" target="_blank" rel="noopener">${icon('nav', 20)}Naviga</a>`);
+  return `<div class="prossimo" data-act="apri" data-id="${esc(x.id)}" role="button" tabindex="0">
+    <div class="p-top"><span class="p-quando">${esc(quando)}</span>${conPagamento(x) && haImporto(x) ? `<b style="color:${coloreMov(x)};font-size:17px">${esc(importoFirmato(x))}</b>` : tagStato(x)}</div>
+    <div class="p-ora">${esc(x.ora)}<small>– ${esc(fineApp(x))}</small></div>
+    <div class="p-chi"><div class="avatar" data-t="${tintaAvatar(c.nome)}" aria-hidden="true">${esc(iniziali(c.nome || '?'))}</div>
+      <div style="min-width:0"><div class="card-title">${esc(x.motivo || c.nome || 'Appuntamento')}</div><div class="card-meta" style="display:block">${[c.nome, x.luogo].filter(Boolean).map(esc).join(' · ')}</div></div></div>
+    ${b.length ? `<div class="p-az">${b.join('')}</div>` : ''}
+  </div>`;
+}
+
+// Proposta: riepilogo del giorno in tre caselle colorate.
+function riepilogoGiorno(attivi, etichetta) {
+  const t = totaliAperti(attivi);
+  return `<div class="riep"><div class="r-n"><span>${esc(etichetta)}</span><b>${attivi.length}</b></div><div class="r-in"><span>Da incassare</span><b>${esc(euro(t.entrata || 0))}</b></div><div class="r-out"><span>Da pagare</span><b>${esc(euro(t.uscita || 0))}</b></div></div>`;
 }
 
 // Fondo della scheda: importo con stato del pagamento, poi le azioni rapide.
@@ -1823,7 +1929,7 @@ function renderAgenda() {
     // (la linea "Ora" compare prima del primo appuntamento non ancora iniziato)
     const adesso = oraAdesso();
     let messo = sel !== oggi;
-    corpo = '<div style="display:flex;flex-direction:column;gap:16px">' + items.map(a => {
+    corpo = '<div class="lista2">' + items.map(a => {
       let pre = '';
       if (!messo && a.ora > adesso) {
         messo = true;
@@ -1834,6 +1940,7 @@ function renderAgenda() {
   }
 
   $('#main').innerHTML = `<div class="view">
+    <div class="banda">
     <div class="head">
       <div><div class="card-kicker">${esc(kicker)}</div><h1>${esc(titolo)}</h1></div>
       <div style="display:flex;gap:8px;align-items:center"><div class="toggle">${toggle('lista', 'list', 'Lista')}${toggle('timeline', 'clock', 'Linea del tempo')}</div><button class="btn btn-ghost btn-icon" data-act="logout" aria-label="Esci" title="Esci">${icon('out')}</button></div>
@@ -1842,7 +1949,7 @@ function renderAgenda() {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <button class="btn btn-ghost btn-icon" data-act="settimana" data-k="-7" aria-label="Settimana precedente">${icon('left')}</button>
         <div style="display:flex;gap:10px;align-items:center">
-          <span style="font-size:13px;font-weight:600;color:var(--color-muted)">${esc(weekLabel)}</span>
+          <span class="sett-lbl" style="font-size:13px;font-weight:600;color:var(--color-muted)">${esc(weekLabel)}</span>
           ${sel !== oggi ? '<button class="btn btn-secondary chip-oggi" data-act="vaiOggi">Oggi</button>' : ''}
         </div>
         <button class="btn btn-ghost btn-icon" data-act="settimana" data-k="7" aria-label="Settimana successiva">${icon('right')}</button>
@@ -1859,8 +1966,10 @@ function renderAgenda() {
         }).join('')}
       </div>
     </div>
+    </div>
+    ${sel === oggi ? prossimoInEvidenza(attivi) : ''}
+    ${attivi.length ? riepilogoGiorno(attivi, sel === oggi ? 'Oggi' : 'Giorno') : ''}
     <div class="summary">${summary}</div>
-    ${pilloleTotali(totaliAperti(attivi))}
     <div class="${anima ? 'entra-giorno' : ''}" style="display:flex;flex-direction:column;gap:16px">${corpo}${rigaCompletati}</div>
   </div>`;
 }
