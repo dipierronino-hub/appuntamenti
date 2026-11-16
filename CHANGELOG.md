@@ -13,7 +13,7 @@ La versione si trova in due punti, da cambiare sempre insieme:
 | 2.19.3 | Pubblicata il 13/11/2026 (richiesta #37), sostituita dalla 2.19.4 | Assistente senza IA: «con» dentro il motivo non diventa un nome. Parte dalla 2.19.2. |
 | 2.19.4 | Pubblicata in precedenza, sostituita il 16/11/2026 dalla 2.19.5 | Nuova Agenda "a colpo d'occhio" e colori meno scuri (vedi sotto). Parte dalla 2.19.3. |
 | 2.19.5 | Pubblicata il 16/11/2026, sostituita in giornata dalla 2.19.6 | Restyling grafico mobile-first, solo CSS (vedi sotto). Parte dalla 2.19.4. |
-| 2.19.6 | Pubblicata il 16/11/2026 | Sito web del contatto, pulsante Web e ricerca del sito con AI (vedi sotto). Parte dalla 2.19.5. |
+| 2.19.6 | Pubblicata il 16/11/2026, sostituita dalla 2.19.7 | Sito web del contatto, pulsante Web e ricerca del sito con AI (vedi sotto). Parte dalla 2.19.5. |
 | 2.19.7 | Pubblicata il 17/11/2026 | Ricerca sito AI: aziende rappresentate e recupero dagli errori 429 (vedi sotto). Parte dalla 2.19.6. |
 | 2.20.0 | Proposta | Backup completo e ripristino (richiesta #32, oggi numerata 2.19.0): va rinumerata 2.20.0 e unita dopo la 2.19.4. |
 
