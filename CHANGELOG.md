@@ -12,7 +12,19 @@ La versione si trova in due punti, da cambiare sempre insieme:
 | 2.19.2 | Verificata, sostituita dalla 2.19.3 | Avvio di Gmail affidabile e stato reale (vedi sotto). Parte dalla 2.19.1. |
 | 2.19.3 | Pubblicata il 13/11/2026 (richiesta #37), sostituita dalla 2.19.4 | Assistente senza IA: «con» dentro il motivo non diventa un nome. Parte dalla 2.19.2. |
 | 2.19.4 | Online (ramo main) | Nuova Agenda "a colpo d'occhio" e colori meno scuri (vedi sotto). Parte dalla 2.19.3. |
+| 2.19.5 | Candidata, non pubblicata (ramo restyling-2.19.5) | Restyling grafico mobile-first, solo CSS (vedi sotto). Parte dalla 2.19.4. |
 | 2.20.0 | Proposta | Backup completo e ripristino (richiesta #32, oggi numerata 2.19.0): va rinumerata 2.20.0 e unita dopo la 2.19.4. |
+
+## 2.19.5
+
+**Restyling mobile-first (solo CSS: HTML, JavaScript, dati Firebase e collegamenti invariati)**
+
+- Blocco `/* v2.19.5 */` in fondo allo stile di `index.html`, con variabili `--v219-*` per tema chiaro e scuro (blu ardesia).
+- Fascia blu dell'Agenda più compatta: titolo a 24px, giorni della settimana più bassi.
+- Riepilogo Oggi / Da incassare / Da pagare su card con micro-icone (calendario, freccia in entrata, freccia in uscita).
+- Schede della timeline con bordo sinistro colorato per stato (programmato blu, confermato azzurro, completato verde, annullato grigio, in ritardo rosso).
+- Riquadro "Prossimo" con barra in alto blu e pulsanti da 48px.
+- Scheda dettaglio: barra superiore piena, Data / Ora / Fine in tre riquadri separati, pulsanti di contatto più comodi.
 
 ## 2.19.4
 

@@ -560,6 +560,102 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 /* Pulsante "Nuovo" con la scritta */
 .fab.add{width:auto;padding:0 20px 0 16px;gap:6px;grid-auto-flow:column;border-radius:var(--r-pill);font-weight:700;font-size:15px}
 .fab.add::after{content:"Nuovo"}
+
+/* =====================================================================
+   v2.19.5 — Restyling UI/UX mobile-first (target 375px)
+   SOLO CSS: nessuna modifica a HTML o JavaScript.
+   Bozza del reviewer adattata al DOM reale della 2.19.4:
+   - .riep: .r-n/.r-in/.r-out sono le caselle (span = etichetta, b = valore);
+   - .prossimo non ha attributi di stato: barra in alto neutra (blu);
+   - .app-item.v2: card = .box (la colonna .tcol con gli orari resta fuori),
+     stati in data-sc, ritardo in .box[data-ritardo], importo .imp, badge .tag;
+   - colori di stato: seguono la palette originale (--st-*), uguali a badge
+     .tag e linea del tempo .tl-block; il ritardo usa --st-late;
+   - .azioni-contatto: 3 colonne (4 con "Naviga"), icona sopra il testo.
+   ===================================================================== */
+:root{
+  --v219-surface:#243249;
+  --v219-text:#f1f5fb;--v219-border:#40516a;
+  --v219-blue:#70aaff;--v219-green:#4bd69a;--v219-orange:#ffb45e;
+  --v219-radius:14px;--v219-radius-sm:10px;
+  --v219-shadow:0 4px 14px rgba(0,0,0,.16);--v219-shadow-card:0 3px 10px rgba(0,0,0,.12);
+  --v219-tap:48px
+}
+:root[data-theme="light"]{
+  --v219-surface:#ffffff;
+  --v219-text:#202c40;--v219-border:#d7dfeb;
+  --v219-blue:#245fba;--v219-green:#087d52;--v219-orange:#a95b08;
+  --v219-shadow:0 4px 14px rgba(30,50,80,.07);--v219-shadow-card:0 3px 10px rgba(30,50,80,.06)
+}
+
+/* Fascia blu compatta (resta lo spazio per la barra di stato del telefono) */
+.banda{padding:calc(12px + env(safe-area-inset-top)) 16px 12px;gap:12px}
+.banda .head h1{font-size:24px;line-height:1.2;font-weight:800;letter-spacing:-.5px}
+.banda .week-day{min-width:0;height:auto;min-height:52px;padding:6px 3px;border-radius:10px;transition:background .18s ease,border-color .18s ease}
+.banda .week-day:active{transform:scale(.97)}
+
+/* Riquadro "Prossimo": barra in alto neutra, pulsanti da 48 px */
+.prossimo{padding:14px;color:var(--v219-text);background:var(--v219-surface);border:1px solid var(--v219-border);border-radius:var(--v219-radius);box-shadow:var(--v219-shadow)}
+.prossimo::before{height:3px;background:var(--v219-blue)}
+.prossimo .p-quando{color:var(--v219-blue)}
+.prossimo .p-az a{min-height:var(--v219-tap);min-width:var(--v219-tap);border-radius:10px;font-weight:700;transition:filter .18s ease,transform .18s ease}
+.prossimo .p-az a:active{transform:scale(.97)}
+.prossimo .p-az a:hover{filter:brightness(1.08)}
+
+/* Riepilogo in tre caselle con micro-icone (proporzioni originali: gli importi non si tagliano) */
+.riep{gap:8px}
+.riep>div{padding:12px 8px;align-items:center;text-align:center;border-radius:var(--v219-radius-sm);border:1px solid var(--v219-border);box-shadow:var(--v219-shadow-card)}
+.riep .r-n{background:var(--v219-surface);color:var(--v219-blue)}
+.riep .r-in{background:var(--v219-surface);color:var(--v219-green)}
+.riep .r-out{background:var(--v219-surface);color:var(--v219-orange)}
+.riep b{max-width:100%;font-size:17px;line-height:1.2;font-weight:850;letter-spacing:-.5px}
+.riep>div::before{content:"";display:block;flex:none;width:19px;height:19px;margin-bottom:3px;background-color:currentColor;opacity:.9;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
+.riep .r-n::before{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='17' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='17' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E")}
+.riep .r-in::before{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12M7 10l5 5 5-5M5 21h14'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12M7 10l5 5 5-5M5 21h14'/%3E%3C/svg%3E")}
+.riep .r-out::before{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V3M7 8l5-5 5 5M5 21h14'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V3M7 8l5-5 5 5M5 21h14'/%3E%3C/svg%3E")}
+
+/* Card della timeline: bordo sinistro colorato per stato (sulla .box, la colonna orari resta fuori) */
+.app-item.v2[data-sc="programmato"]{--v219-st:var(--st-prog)}
+.app-item.v2[data-sc="confermato"]{--v219-st:var(--st-conf)}
+.app-item.v2[data-sc="completato"]{--v219-st:var(--st-comp)}
+.app-item.v2[data-sc="annullato"]{--v219-st:var(--st-ann)}
+.app-item.v2:has(>.box[data-ritardo]){--v219-st:var(--st-late)}
+.app-item.v2 .box[data-ritardo]{--v219-st:var(--st-late)}
+.app-item.v2 .box{padding:13px 12px 13px 15px;color:var(--v219-text);background:var(--v219-surface);border:1px solid var(--v219-border);border-radius:var(--v219-radius);box-shadow:var(--v219-shadow-card);overflow-wrap:anywhere;transition:border-color .18s ease,box-shadow .18s ease,transform .1s ease}
+/* dopo le tinte entrata/uscita: il bordo sinistro resta sempre del colore di stato */
+.app-item.v2>.box[data-stato]{border-left:4px solid var(--v219-st,var(--st-prog))}
+@media (hover:hover){.app-item.v2:hover .box{border-top-color:var(--border-strong);border-right-color:var(--border-strong);border-bottom-color:var(--border-strong);box-shadow:var(--shadow-md)}}
+.app-item.v2 .tcol::before{border-color:var(--v219-st,var(--st-prog))}
+.app-item.v2 .imp{font-weight:800;font-variant-numeric:tabular-nums}
+.app-item.v2 .tag{min-height:25px;padding:4px 9px;font-size:11.5px;line-height:1.25;font-weight:800;letter-spacing:.2px}
+
+/* Scheda dettaglio */
+.page{color:var(--v219-text)}
+.page-bar{gap:10px;min-height:56px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;background:var(--v219-surface);border-bottom:1px solid var(--v219-border)}
+.page-bar .btn{min-width:var(--v219-tap);min-height:var(--v219-tap);border-radius:10px}
+.page .griglia-orari{gap:8px;background:transparent;border:0;box-shadow:none;overflow:visible}
+.page .griglia-orari>*{min-width:0;padding:11px 10px;background:var(--v219-surface);border:1px solid var(--v219-border);border-radius:var(--v219-radius-sm)}
+.page .griglia-orari>*:first-child{background:var(--accent-soft)}
+.page .azioni-contatto{gap:9px}
+.page .azioni-contatto>*{min-width:0;padding:10px 4px;border-radius:11px;font-weight:750;text-align:center;transition:filter .18s ease,transform .18s ease}
+.page .azioni-contatto>*:active{transform:scale(.97)}
+
+/* Focus da tastiera ben visibile */
+:where(.page,.prossimo,.banda,.app-item) button:focus-visible,
+:where(.page,.prossimo,.banda,.app-item) a:focus-visible{outline:2px solid var(--v219-blue);outline-offset:3px}
+
+/* Smartphone stretti */
+@media (max-width:400px){
+  .banda{padding-inline:12px}
+  .riep{gap:6px}
+  .riep>div{padding:10px 5px}
+  .prossimo{padding:12px}
+  .app-item.v2 .box{padding:12px 10px 12px 13px}
+  .page .griglia-orari{gap:6px}
+  .page .griglia-orari>*{padding:9px 7px}
+  .page .azioni-contatto{gap:7px}
+  .page .azioni-contatto>*{padding:9px 3px;font-size:13px}
+}
 </style>
 </head>
 <body>
@@ -604,7 +700,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.19.4';
+const APP_VERSION = '2.19.5';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
