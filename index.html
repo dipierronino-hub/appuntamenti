@@ -675,6 +675,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 .sito-ris-az{display:flex;gap:8px;flex-wrap:wrap}
 .sito-ris-az>.btn{min-height:var(--tap);padding-inline:12px}
 .sito-ris-az>.btn-primary{margin-left:auto}
+.sito-ris-az>.sito-sugg{flex:1 1 120px;min-width:0;align-self:center;white-space:normal;line-height:1.25}
 .sito-google{width:100%;height:64px;border:0;border-radius:var(--r-md);background:transparent}
 .sito-vuoto{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .sito-vuoto .btn{min-height:var(--tap);padding-inline:8px}
@@ -722,7 +723,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.19.6';
+const APP_VERSION = '2.19.7';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1622,30 +1623,139 @@ function dominioFonte(web) {
   return /^([a-z0-9-]+\.)+[a-z]{2,}$/.test(host) ? host : '';
 }
 
-async function cercaSitoIA({ nome, tipo, dominioEmail, note }) {
+// v2.19.7: dopo un HTTP 429 si attende 1500 ms e si passa al modello di riserva successivo.
+const ATTESA_DOPO_429 = 1500;
+const pausa = ms => new Promise(ok => setTimeout(ok, ms));
+const RE_DOMINIO = /([a-z0-9-]+\.)+[a-z]{2,}/i;
+const stessoDominio = (a, b) => !!(a && b && (a === b || a.endsWith('.' + b) || b.endsWith('.' + a)));
+
+// Una sola passata sui modelli già previsti (stesso ordine di chiediGemini), quindi nessun ciclo infinito:
+// - risposta ok → si usa;
+// - 429 → attesa di 1500 ms SOLO se c'è un modello successivo da provare, poi modello successivo;
+// - 404 (modello ritirato) o 5xx → modello successivo, come prima;
+// - altri errori → stop, come prima.
+// Dopo l'ultimo modello non si attende mai: l'eventuale attesa prima della seconda fase la decide cercaSitoIA.
+// solo429: nessun modello ha risposto e i tentativi sono falliti per 429 (i 404 indicano solo modelli ritirati).
+async function chiamaGeminiSito(chiave, corpo) {
+  const modelli = [...new Set([lsGet('gemini_model') || MODELLO_IA_PREDEFINITO, ...MODELLI_IA_RISERVA])];
+  let r = null, visto429 = false, altroErrore = false;
+  for (let i = 0; i < modelli.length; i++) {
+    r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelli[i]) + ':generateContent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chiave },
+      body: JSON.stringify(corpo)
+    });
+    if (r.ok) return { r, solo429: false };
+    const ultimo = i === modelli.length - 1;
+    if (r.status === 429) { visto429 = true; if (!ultimo) await pausa(ATTESA_DOPO_429); continue; }
+    if (r.status !== 404) altroErrore = true;
+    if (r.status === 404 || r.status >= 500) continue;
+    break;
+  }
+  return { r, solo429: visto429 && !altroErrore };
+}
+
+// Errore della seconda fase (senza Google Search), dopo i 429 della prima: tipo usato per il messaggio.
+// tipo: '429' | 'chiave' (400/401/403) | 'servizio' (5xx) | 'rete' | 'risposta' (JSON illeggibile) | 'altro'
+function erroreSecondaFase(tipo, stato = 0) {
+  const e = new Error('Gemini ' + (stato || tipo));
+  e.secondaFase = tipo;
+  e.stato = stato;
+  return e;
+}
+function tipoErroreHttp(stato) {
+  if (stato === 429) return '429';
+  if (stato === 400 || stato === 401 || stato === 403) return 'chiave';
+  if (stato >= 500) return 'servizio';
+  return 'altro';
+}
+// Messaggio comprensibile per l'errore della seconda fase.
+function messaggioSecondaFase(err) {
+  const pre = 'Google Search non disponibile (errore 429). ';
+  const http = err.stato ? ` (HTTP ${err.stato})` : '';
+  return pre + ({
+    '429': 'Anche la ricerca senza Google Search ha ricevuto troppe richieste (429): ricerca automatica non disponibile, riprova tra un minuto.',
+    chiave: `Errore della richiesta a Gemini${http}: chiave API non valida o non autorizzata. Controllala in Altro › Assistente IA.`,
+    servizio: `Servizio Gemini temporaneamente non disponibile${http}: riprova più tardi.`,
+    rete: 'Impossibile contattare Gemini: controlla la connessione.',
+    risposta: 'Risposta dell’AI non valida: riprova più tardi.'
+  }[err.secondaFase] || `Assistente IA non disponibile${http}: riprova più tardi.`) + ' Puoi usare “Cerca su Google” qui sotto.';
+}
+
+// Solo homepage https:// sintatticamente valida: niente percorsi o sottopagine inventati.
+function urlSuggerito(s) {
+  const t = String(s ?? '').trim();
+  if (!/^https:\/\//i.test(t)) return '';
+  const n = normalizzaSito(t);
+  if (!n) return '';
+  const u = new URL(n);
+  return u.protocol === 'https:' ? u.origin : '';
+}
+
+// aziende: aziende rappresentate (campo mandanti, solo lettura). Se presenti hanno la priorità sul nome della persona.
+async function cercaSitoIA({ nome, tipo, dominioEmail, note, aziende = [] }) {
   const chiave = lsGet('gemini_key');
   if (!chiave) throw new Error('chiave mancante');
-  const prompt = `Usa la ricerca Google per trovare il sito web ufficiale di questo contatto di lavoro (Italia).
+  const extra = `${dominioEmail ? 'Dominio email: ' + dominioEmail + '\n' : ''}${note ? 'Note: ' + note + '\n' : ''}`;
+  const elenco = aziende.map((a, i) => `${i + 1}. ${a}`).join('\n');
+  const prompt = aziende.length
+    ? `Usa la ricerca Google per trovare il sito web ufficiale di ${aziende.length > 1 ? 'CIASCUNA delle aziende' : "dell'azienda"} qui sotto (Italia). Cerca le aziende, non la persona.
+Aziende rappresentate (priorità):
+${elenco}
+Rappresentante (solo contesto, non cercare il suo sito personale): ${nome}
+${extra}
+Rispondi con una riga per azienda, nel formato "Nome azienda: dominio" (per esempio "Esempio Spa: esempio.it"), oppure "Nome azienda: NESSUNO" se dalle fonti non risulta con certezza. Non inventare indirizzi.`
+    : `Usa la ricerca Google per trovare il sito web ufficiale di questo contatto di lavoro (Italia).
 Nome: ${nome}
 Tipo di contatto: ${tipo}
 ${dominioEmail ? 'Dominio email aziendale: ' + dominioEmail + '\n' : ''}${note ? 'Note: ' + note + '\n' : ''}
 Rispondi con una sola riga contenente solo il dominio del sito ufficiale (per esempio esempio.it), oppure NESSUNO se dalle fonti non risulta con certezza. Non inventare indirizzi.`;
-  const modelli = [...new Set([lsGet('gemini_model') || MODELLO_IA_PREDEFINITO, ...MODELLI_IA_RISERVA])];
-  let r;
-  for (const modello of modelli) {
-    r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modello) + ':generateContent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chiave },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ google_search: {} }],
-        generationConfig: { temperature: 0 }
-      })
+
+  // Fase A: Gemini con Google Search grounding.
+  const a = await chiamaGeminiSito(chiave, {
+    contents: [{ parts: [{ text: prompt }] }],
+    tools: [{ google_search: {} }],
+    generationConfig: { temperature: 0 }
+  });
+  if (a.r.ok) return risultatiGrounding(await a.r.json(), { aziende, dominioEmail });
+  if (!a.solo429) throw new Error('Gemini ' + a.r.status);
+  // Una sola attesa di 1500 ms tra l'ultimo 429 con Google Search e la seconda fase.
+  await pausa(ATTESA_DOPO_429);
+
+  // Fase B: tutti i modelli hanno risposto 429 con Google Search → Gemini senza ricerca web.
+  // Sono solo suggerimenti: mai mostrati come verificati e mai salvati in automatico.
+  const obiettivi = aziende.length ? aziende : [nome];
+  const promptB = `Senza ricerca web, indica la homepage del sito ufficiale di ${obiettivi.length > 1 ? 'CIASCUNA delle aziende' : "dell'azienda o del professionista"} qui sotto (Italia)${aziende.length ? ', non della persona che le rappresenta' : ''}.
+${obiettivi.map((x, i) => `${i + 1}. ${x}`).join('\n')}
+${aziende.length ? 'Rappresentante (solo contesto): ' + nome + '\n' : 'Tipo di contatto: ' + tipo + '\n'}${extra}
+Rispondi SOLO con un oggetto JSON: {"risultati":[{"azienda":"nome esattamente come scritto sopra","url":"https://dominio-ufficiale"}]}, un elemento per ciascuna voce dell'elenco.
+Usa solo URL assoluti che iniziano con https:// e indicano la homepage, senza percorsi. Se non sei sicuro usa "url": "". Non inventare domini o indirizzi.`;
+  let b;
+  try {
+    b = await chiamaGeminiSito(chiave, {
+      contents: [{ parts: [{ text: promptB }] }],
+      generationConfig: { temperature: 0, responseMimeType: 'application/json' }
     });
-    if (r.ok || !(r.status === 404 || r.status >= 500)) break;
+  } catch (err) { throw erroreSecondaFase('rete'); } // fetch fallita (TypeError): nessuna risposta HTTP
+  if (!b.r.ok) throw erroreSecondaFase(tipoErroreHttp(b.r.status), b.r.status);
+  let dati;
+  try {
+    const j = await b.r.json();
+    const testo = (j?.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+    dati = JSON.parse(/\{[\s\S]*\}/.exec(testo)?.[0] || '');
+  } catch (err) { throw erroreSecondaFase('risposta'); }
+  const suggeriti = [];
+  for (const x of Array.isArray(dati?.risultati) ? dati.risultati : []) {
+    const url = urlSuggerito(x?.url);
+    if (!url || suggeriti.some(s => s.url === url)) continue;
+    const azienda = obiettivi.find(o => norm(o) === norm(x?.azienda)) || (obiettivi.length === 1 ? obiettivi[0] : '');
+    suggeriti.push({ url, azienda });
   }
-  if (!r.ok) throw new Error('Gemini ' + r.status);
-  const j = await r.json();
+  return { modo: 'senzaRicerca', suggeriti: suggeriti.slice(0, 8), mancanti: obiettivi.filter(o => !suggeriti.some(s => s.azienda === o)) };
+}
+
+// Fonti reali di Google Search (groundingChunks) abbinate, quando possibile, all'azienda indicata dal modello.
+function risultatiGrounding(j, { aziende, dominioEmail }) {
   const cand = j?.candidates?.[0];
   const meta = cand?.groundingMetadata || {};
   const testo = (cand?.content?.parts || []).map(p => p.text || '').join('').trim();
@@ -1657,43 +1767,89 @@ Rispondi con una sola riga contenente solo il dominio del sito ufficiale (per es
     if (!dominio || fonti.some(f => f.dominio === dominio)) continue;
     fonti.push({ dominio, titolo: String(w.title || dominio), fonte: w.uri });
   }
-  const indicato = (/([a-z0-9-]+\.)+[a-z]{2,}/i.exec(testo)?.[0] || '').toLowerCase().replace(/^www\./, '');
-  const stesso = (a, b) => !!(a && b && (a === b || a.endsWith('.' + b) || b.endsWith('.' + a)));
-  fonti.forEach(f => { f.indicato = stesso(f.dominio, indicato); f.comeEmail = stesso(f.dominio, dominioEmail); });
-  fonti.sort((a, b) => (b.indicato - a.indicato) || (b.comeEmail - a.comeEmail));
+  // Dominio indicato dal modello per ciascuna azienda ("Nome azienda: dominio"); senza aziende, la prima riga.
+  const indicati = new Map();
+  if (aziende.length) {
+    for (const riga of testo.split('\n')) {
+      const i = riga.lastIndexOf(':');
+      if (i < 1) continue;
+      const nomeRiga = norm(riga.slice(0, i).replace(/^[\s*\-\d.]+/, '').replace(/\*/g, ''));
+      const dom = (RE_DOMINIO.exec(riga.slice(i + 1))?.[0] || '').toLowerCase().replace(/^www\./, '');
+      const az = aziende.find(x => norm(x) === nomeRiga) || aziende.find(x => nomeRiga && (norm(x).includes(nomeRiga) || nomeRiga.includes(norm(x))));
+      if (az && dom && !indicati.has(az)) indicati.set(az, dom);
+    }
+    if (aziende.length === 1 && !indicati.size) {
+      const dom = (RE_DOMINIO.exec(testo)?.[0] || '').toLowerCase().replace(/^www\./, '');
+      if (dom) indicati.set(aziende[0], dom);
+    }
+  }
+  const indicato = aziende.length ? '' : (RE_DOMINIO.exec(testo)?.[0] || '').toLowerCase().replace(/^www\./, '');
+  fonti.forEach(f => {
+    f.azienda = aziende.find(az => stessoDominio(f.dominio, indicati.get(az))) || '';
+    f.indicato = aziende.length ? !!f.azienda : stessoDominio(f.dominio, indicato);
+    f.comeEmail = stessoDominio(f.dominio, dominioEmail);
+  });
+  const ordine = f => (f.azienda ? aziende.indexOf(f.azienda) : aziende.length);
+  fonti.sort((x, y) => (ordine(x) - ordine(y)) || (y.indicato - x.indicato) || (y.comeEmail - x.comeEmail));
   // Suggerimenti di ricerca di Google (da mostrare quando presenti, come chiedono i termini del grounding).
-  return { fonti: fonti.slice(0, 5), suggerimenti: String(meta.searchEntryPoint?.renderedContent || '') };
+  return {
+    modo: 'grounding',
+    fonti: fonti.slice(0, Math.max(5, aziende.length + 3)),
+    mancanti: aziende.filter(az => !fonti.some(f => f.azienda === az)),
+    suggerimenti: String(meta.searchEntryPoint?.renderedContent || '')
+  };
+}
+
+// Ricerca Google precompilata: le aziende rappresentate (tutte) hanno la priorità sul nome della persona.
+function linkGoogleSito(nome, aziende = []) {
+  const q = aziende.length
+    ? aziende.map(a => `"${String(a).replace(/"/g, '')}"`).join(' OR ') + ' sito ufficiale'
+    : nome + ' sito ufficiale';
+  return 'https://www.google.com/search?q=' + encodeURIComponent(q);
 }
 
 // Riquadro dei risultati: fonti verificate, eventuale dominio email (non verificato) e ricerca su Google.
-function htmlRisultatiSito(ris, dominioEmail, nome) {
-  const scheda = (url, titolo, badge, fonte = '') => `<div class="sito-ris">
-      <div class="sito-ris-tag">${badge}</div>
+function htmlRisultatiSito(ris, dominioEmail, nome, aziende = []) {
+  // etichetta: mostrata accanto ad "Apri" (suggerimenti AI senza Google Search).
+  const scheda = (url, titolo, badge, fonte = '', etichetta = '') => `<div class="sito-ris">
+      ${badge ? `<div class="sito-ris-tag">${badge}</div>` : ''}
       <div class="card-title">${esc(titolo)}</div>
       <div class="card-meta sito-url">${esc(url)}</div>
       <div class="sito-ris-az">
         <a class="btn btn-secondary" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon('ext', 16)} Apri</a>
+        ${etichetta ? `<span class="tag tag-warn sito-sugg">${esc(etichetta)}</span>` : ''}
         ${fonte ? `<a class="btn btn-ghost" href="${esc(fonte)}" target="_blank" rel="noopener noreferrer">Fonte</a>` : ''}
         <button type="button" class="btn btn-primary" data-usa-sito="${esc(url)}">${icon('check', 16)} Usa</button>
       </div>
     </div>`;
+  const tagAzienda = az => (az ? `<span class="tag tag-tipo" data-tipo="rappresentante">${esc(az)}</span>` : '');
   const parti = [];
   for (const f of ris.fonti || []) {
     const url = normalizzaSito(f.dominio);
     if (!url) continue;
     const badge = '<span class="tag tag-comp">Verificato · Google Search</span>'
+      + tagAzienda(f.azienda)
       + (f.indicato ? '<span class="tag tag-prog">Indicato dall’IA</span>' : '')
       + (f.comeEmail ? '<span class="tag tag-neutral">Uguale al dominio email</span>' : '');
     parti.push(scheda(url, f.titolo, badge, f.fonte));
   }
-  if (ris.cercato && !parti.length) parti.push('<p class="muted" style="margin:0">Google Search non ha restituito fonti utilizzabili per questo contatto.</p>');
+  if (ris.modo === 'grounding' && !parti.length) parti.push('<p class="muted" style="margin:0">Google Search non ha restituito fonti utilizzabili per questo contatto.</p>');
+  if (ris.modo === 'grounding' && aziende.length > 1 && ris.mancanti?.length) {
+    parti.push(`<p class="muted" style="margin:0">Nessuna fonte abbinata con certezza a: ${esc(ris.mancanti.join(', '))}.</p>`);
+  }
+  if (ris.modo === 'senzaRicerca') {
+    parti.push('<p class="muted" style="margin:0">Google Search non disponibile (errore 429, troppe richieste): suggerimenti dell’AI senza ricerca web, da verificare.</p>');
+    for (const s of ris.suggeriti || []) parti.push(scheda(s.url, nomeSito(s.url), tagAzienda(s.azienda), '', 'Suggerimento AI · verifica prima di salvare'));
+    if (!(ris.suggeriti || []).length) parti.push('<p class="muted" style="margin:0">L’AI non ha indicato siti validi.</p>');
+    else if (ris.mancanti?.length && aziende.length > 1) parti.push(`<p class="muted" style="margin:0">Nessun suggerimento per: ${esc(ris.mancanti.join(', '))}.</p>`);
+  }
   if (dominioEmail && !(ris.fonti || []).some(f => f.comeEmail)) {
     parti.push(scheda('https://' + dominioEmail, dominioEmail, '<span class="tag tag-warn">Non verificato · dal dominio email</span>'));
   }
   if (ris.suggerimenti) {
     parti.push(`<iframe class="sito-google" title="Suggerimenti di Google Search" sandbox="allow-popups allow-popups-to-escape-sandbox" srcdoc="${esc('<base target="_blank">' + ris.suggerimenti)}"></iframe>`);
   }
-  parti.push(`<a class="btn btn-ghost" href="${esc('https://www.google.com/search?q=' + encodeURIComponent(nome + ' sito ufficiale'))}" target="_blank" rel="noopener noreferrer" style="align-self:flex-start">${icon('search', 16)} Cerca su Google</a>`);
+  parti.push(`<a class="btn btn-ghost" href="${esc(linkGoogleSito(nome, aziende))}" target="_blank" rel="noopener noreferrer" style="align-self:flex-start">${icon('search', 16)} Cerca su Google</a>`);
   return parti.join('');
 }
 
@@ -1719,17 +1875,21 @@ function collegaSito(fc, auto) {
     const dominioEmail = dominioAziendale(fc.email?.value);
     const tipo = TIPI_CONTATTO[fc.tipo?.value]?.[0] || 'Cliente';
     const note = String(fc.note?.value || '').trim().slice(0, 300);
+    // Aziende rappresentate (v2.19.7): lette dal modulo come le salva salvaContatto (campo mandanti), solo per i rappresentanti.
+    const aziende = fc.tipo?.value === 'rappresentante'
+      ? pulisciMandanti([...fc.querySelectorAll('[name="mandante"]')].map(i => i.value)) : [];
     box.hidden = false;
     if (!lsGet('gemini_key')) {
-      box.innerHTML = '<p class="muted" style="margin:0">Senza chiave Gemini non posso cercare in rete (Altro › Assistente IA).</p>' + htmlRisultatiSito({}, dominioEmail, nome);
+      box.innerHTML = '<p class="muted" style="margin:0">Senza chiave Gemini non posso cercare in rete (Altro › Assistente IA).</p>' + htmlRisultatiSito({}, dominioEmail, nome, aziende);
       return;
     }
     btn.disabled = true; btn.classList.add('analisi');
-    box.innerHTML = '<p class="muted" style="margin:0">Cerco il sito con Google Search…</p>';
+    box.innerHTML = `<p class="muted" style="margin:0">Cerco ${aziende.length > 1 ? 'i siti delle aziende rappresentate' : aziende.length ? 'il sito dell’azienda rappresentata' : 'il sito'} con Google Search…</p>`;
     try {
-      box.innerHTML = htmlRisultatiSito({ ...(await cercaSitoIA({ nome, tipo, dominioEmail, note })), cercato: true }, dominioEmail, nome);
+      box.innerHTML = htmlRisultatiSito(await cercaSitoIA({ nome, tipo, dominioEmail, note, aziende }), dominioEmail, nome, aziende);
     } catch (err) {
-      box.innerHTML = `<p class="err">${esc(messaggioIA(err))}</p>` + htmlRisultatiSito({}, dominioEmail, nome);
+      const msg = err?.secondaFase ? messaggioSecondaFase(err) : messaggioIA(err);
+      box.innerHTML = `<p class="err">${esc(msg)}</p>` + htmlRisultatiSito({}, dominioEmail, nome, aziende);
     } finally {
       btn.disabled = false; btn.classList.remove('analisi');
     }
