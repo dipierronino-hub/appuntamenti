@@ -656,6 +656,28 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
   .page .azioni-contatto{gap:7px}
   .page .azioni-contatto>*{padding:9px 3px;font-size:13px}
 }
+
+/* =====================================================================
+   v2.19.6 — Sito web del contatto, pulsante Web e ricerca AI
+   ===================================================================== */
+.field>label{font-size:13px;font-weight:600;color:var(--color-muted)}
+.azioni-contatto.cinque{grid-template-columns:repeat(5,minmax(0,1fr))}
+.azioni-contatto .az-web svg{color:var(--accent-text)}
+.azioni-contatto .az-web.non-verificato{border-style:dashed}
+.page .azioni-contatto.cinque{gap:6px}
+.page .azioni-contatto.cinque>*{padding-inline:2px;font-size:12px}
+.btn-cerca-sito{align-self:flex-start}
+.risultati-sito{display:flex;flex-direction:column;gap:10px}
+.sito-ris{display:flex;flex-direction:column;gap:6px;padding:12px;min-width:0;background:var(--surface-2);border:1px solid var(--glass-border);border-radius:var(--r-md)}
+.sito-ris-tag{display:flex;gap:6px;flex-wrap:wrap}
+.sito-ris .card-title{font-size:15px;overflow-wrap:anywhere}
+.sito-url{display:block;overflow-wrap:anywhere}
+.sito-ris-az{display:flex;gap:8px;flex-wrap:wrap}
+.sito-ris-az>.btn{min-height:var(--tap);padding-inline:12px}
+.sito-ris-az>.btn-primary{margin-left:auto}
+.sito-google{width:100%;height:64px;border:0;border-radius:var(--r-md);background:transparent}
+.sito-vuoto{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.sito-vuoto .btn{min-height:var(--tap);padding-inline:8px}
 </style>
 </head>
 <body>
@@ -700,7 +722,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.19.5';
+const APP_VERSION = '2.19.6';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -742,6 +764,46 @@ function normTel(s) {
 function isEmail(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s ?? '').trim());
 }
+
+// ----- Sito web del contatto (v2.19.6) -----
+// Normalizza un indirizzo web: '' se vuoto, null se non valido o non sicuro, altrimenti l'URL completo.
+// Senza protocollo si aggiunge https://; sono ammessi solo http e https (mai javascript:, data:, file: …).
+function normalizzaSito(s) {
+  let t = String(s ?? '').trim();
+  if (!t) return '';
+  if (t.length > 300 || /\s/.test(t)) return null;
+  if (!/^https?:\/\//i.test(t)) {
+    // "schema:" seguito da qualcosa che non è un numero di porta = protocollo diverso da http/https
+    if (/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(t) || t.startsWith('//')) return null;
+    t = 'https://' + t;
+  }
+  let u;
+  try { u = new URL(t); } catch (e) { return null; }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  if (u.username || u.password) return null;
+  if (!/^([a-z0-9-]+\.)+[a-z0-9-]{2,}$/i.test(u.hostname) || /^[\d.]+$/.test(u.hostname)) return null;
+  const href = u.href;
+  return u.pathname === '/' && !u.search && !u.hash ? href.replace(/\/$/, '') : href;
+}
+
+// Domini email generici (anche come sottodominio, es. pec.libero.it): non indicano il sito dell'azienda.
+const DOMINI_EMAIL_GENERICI = ['gmail', 'googlemail', 'libero', 'pec', 'hotmail', 'outlook', 'live', 'yahoo', 'alice', 'virgilio', 'tim', 'icloud'];
+function dominioAziendale(email) {
+  const e = String(email ?? '').trim().toLowerCase();
+  if (!isEmail(e)) return '';
+  const dom = e.split('@').pop().replace(/\.$/, '');
+  const parti = dom.split('.');
+  if (parti.length < 2 || parti.slice(0, -1).some(p => DOMINI_EMAIL_GENERICI.includes(p))) return '';
+  return normalizzaSito(dom) ? dom : '';
+}
+// Sito da mostrare: quello salvato, altrimenti quello ricavato dall'email aziendale (non verificato).
+function sitoDi(c) {
+  const salvato = normalizzaSito(c?.sito);
+  if (salvato) return { url: salvato, daEmail: false };
+  const dom = dominioAziendale(c?.email);
+  return dom ? { url: 'https://' + dom, daEmail: true } : null;
+}
+const nomeSito = url => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return url; } };
 
 function validDate(s) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s ?? ''));
@@ -1088,6 +1150,7 @@ const ICON_PATHS = {
   send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
   down: '<path d="M12 5v14M19 12l-7 7-7-7"/>',
   up: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
   book: '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><circle cx="12" cy="9" r="2.5"/><path d="M8.5 14a3.5 3.5 0 0 1 7 0"/>'
 };
 function icon(n, s = 18) {
@@ -1230,6 +1293,12 @@ function validaContatto(v) {
   if (!tel && !email) return { ok: false, msg: 'Inserisci almeno un telefono o un’email' };
   const dati = { nome, telefono: tel, email };
   if ('note' in v) dati.note = String(v.note ?? '').trim();
+  // sito: come note, solo se presente nel modulo (il modulo appuntamento non lo cancella)
+  if ('sito' in v) {
+    const sito = normalizzaSito(v.sito);
+    if (sito === null) return { ok: false, msg: 'Sito web non valido (es. esempio.it)' };
+    dati.sito = sito;
+  }
   if ('tipo' in v) dati.tipo = tipoDi(v);
   if ('mandanti' in v) dati.mandanti = dati.tipo === 'rappresentante' ? pulisciMandanti(v.mandanti) : [];
   return { ok: true, dati };
@@ -1536,6 +1605,137 @@ function messaggioIA(err) {
   const codice = /Gemini (\d+)/.exec(m);
   if (codice) return `Assistente IA non disponibile (errore ${codice[1]}): riprova tra poco`;
   return 'Assistente IA non disponibile. Controlla la connessione.';
+}
+
+// ----- Ricerca del sito web con Gemini + Google Search (v2.19.6) -----
+// Funzione separata da chiediGemini: la ricerca Google (grounding) non si combina con la risposta JSON.
+// Gli URL proposti vengono SOLO dalle fonti reali della ricerca (groundingMetadata.groundingChunks);
+// il testo del modello serve unicamente a indicare quale di quelle fonti è il sito ufficiale.
+function dominioFonte(web) {
+  let host = '';
+  try { host = new URL(web.uri).hostname.toLowerCase(); } catch (e) { host = ''; }
+  // Google restituisce link di reindirizzamento: il dominio reale della fonte è nel titolo.
+  if (!host || /(^|\.)vertexaisearch\.cloud\.google\.com$/.test(host) || /(^|\.)google\.[a-z.]+$/.test(host)) {
+    host = String(web.title || '').trim().toLowerCase();
+  }
+  host = host.replace(/^www\./, '');
+  return /^([a-z0-9-]+\.)+[a-z]{2,}$/.test(host) ? host : '';
+}
+
+async function cercaSitoIA({ nome, tipo, dominioEmail, note }) {
+  const chiave = lsGet('gemini_key');
+  if (!chiave) throw new Error('chiave mancante');
+  const prompt = `Usa la ricerca Google per trovare il sito web ufficiale di questo contatto di lavoro (Italia).
+Nome: ${nome}
+Tipo di contatto: ${tipo}
+${dominioEmail ? 'Dominio email aziendale: ' + dominioEmail + '\n' : ''}${note ? 'Note: ' + note + '\n' : ''}
+Rispondi con una sola riga contenente solo il dominio del sito ufficiale (per esempio esempio.it), oppure NESSUNO se dalle fonti non risulta con certezza. Non inventare indirizzi.`;
+  const modelli = [...new Set([lsGet('gemini_model') || MODELLO_IA_PREDEFINITO, ...MODELLI_IA_RISERVA])];
+  let r;
+  for (const modello of modelli) {
+    r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modello) + ':generateContent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chiave },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ google_search: {} }],
+        generationConfig: { temperature: 0 }
+      })
+    });
+    if (r.ok || !(r.status === 404 || r.status >= 500)) break;
+  }
+  if (!r.ok) throw new Error('Gemini ' + r.status);
+  const j = await r.json();
+  const cand = j?.candidates?.[0];
+  const meta = cand?.groundingMetadata || {};
+  const testo = (cand?.content?.parts || []).map(p => p.text || '').join('').trim();
+  const fonti = [];
+  for (const ch of meta.groundingChunks || []) {
+    const w = ch?.web;
+    if (!w?.uri) continue;
+    const dominio = dominioFonte(w);
+    if (!dominio || fonti.some(f => f.dominio === dominio)) continue;
+    fonti.push({ dominio, titolo: String(w.title || dominio), fonte: w.uri });
+  }
+  const indicato = (/([a-z0-9-]+\.)+[a-z]{2,}/i.exec(testo)?.[0] || '').toLowerCase().replace(/^www\./, '');
+  const stesso = (a, b) => !!(a && b && (a === b || a.endsWith('.' + b) || b.endsWith('.' + a)));
+  fonti.forEach(f => { f.indicato = stesso(f.dominio, indicato); f.comeEmail = stesso(f.dominio, dominioEmail); });
+  fonti.sort((a, b) => (b.indicato - a.indicato) || (b.comeEmail - a.comeEmail));
+  // Suggerimenti di ricerca di Google (da mostrare quando presenti, come chiedono i termini del grounding).
+  return { fonti: fonti.slice(0, 5), suggerimenti: String(meta.searchEntryPoint?.renderedContent || '') };
+}
+
+// Riquadro dei risultati: fonti verificate, eventuale dominio email (non verificato) e ricerca su Google.
+function htmlRisultatiSito(ris, dominioEmail, nome) {
+  const scheda = (url, titolo, badge, fonte = '') => `<div class="sito-ris">
+      <div class="sito-ris-tag">${badge}</div>
+      <div class="card-title">${esc(titolo)}</div>
+      <div class="card-meta sito-url">${esc(url)}</div>
+      <div class="sito-ris-az">
+        <a class="btn btn-secondary" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${icon('ext', 16)} Apri</a>
+        ${fonte ? `<a class="btn btn-ghost" href="${esc(fonte)}" target="_blank" rel="noopener noreferrer">Fonte</a>` : ''}
+        <button type="button" class="btn btn-primary" data-usa-sito="${esc(url)}">${icon('check', 16)} Usa</button>
+      </div>
+    </div>`;
+  const parti = [];
+  for (const f of ris.fonti || []) {
+    const url = normalizzaSito(f.dominio);
+    if (!url) continue;
+    const badge = '<span class="tag tag-comp">Verificato · Google Search</span>'
+      + (f.indicato ? '<span class="tag tag-prog">Indicato dall’IA</span>' : '')
+      + (f.comeEmail ? '<span class="tag tag-neutral">Uguale al dominio email</span>' : '');
+    parti.push(scheda(url, f.titolo, badge, f.fonte));
+  }
+  if (ris.cercato && !parti.length) parti.push('<p class="muted" style="margin:0">Google Search non ha restituito fonti utilizzabili per questo contatto.</p>');
+  if (dominioEmail && !(ris.fonti || []).some(f => f.comeEmail)) {
+    parti.push(scheda('https://' + dominioEmail, dominioEmail, '<span class="tag tag-warn">Non verificato · dal dominio email</span>'));
+  }
+  if (ris.suggerimenti) {
+    parti.push(`<iframe class="sito-google" title="Suggerimenti di Google Search" sandbox="allow-popups allow-popups-to-escape-sandbox" srcdoc="${esc('<base target="_blank">' + ris.suggerimenti)}"></iframe>`);
+  }
+  parti.push(`<a class="btn btn-ghost" href="${esc('https://www.google.com/search?q=' + encodeURIComponent(nome + ' sito ufficiale'))}" target="_blank" rel="noopener noreferrer" style="align-self:flex-start">${icon('search', 16)} Cerca su Google</a>`);
+  return parti.join('');
+}
+
+// Collega campo "Sito web", pulsante "Cerca sito con AI" e risultati nel modulo contatto.
+// Il tocco su "Usa" compila solo il campo: si salva su Firebase solo con il pulsante Salva.
+function collegaSito(fc, auto) {
+  const campo = fc.sito, btn = fc.querySelector('#btnCercaSito'), box = fc.querySelector('#risultatiSito');
+  if (!campo || !btn || !box) return;
+  const aggiorna = () => { const pieno = !!campo.value.trim(); btn.hidden = pieno; if (pieno) box.hidden = true; };
+  campo.addEventListener('input', aggiorna);
+  campo.addEventListener('blur', () => { const s = normalizzaSito(campo.value); if (s) campo.value = s; });
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-usa-sito]');
+    if (!b) return;
+    campo.value = b.dataset.usaSito;
+    aggiorna();
+    campo.classList.remove('compilato'); void campo.offsetWidth; campo.classList.add('compilato');
+    toast('Sito inserito: tocca Salva per confermare');
+  });
+  btn.addEventListener('click', async () => {
+    const nome = String(fc.nome?.value || '').trim();
+    if (!nome) { toast('Inserisci prima il nome del contatto'); return; }
+    const dominioEmail = dominioAziendale(fc.email?.value);
+    const tipo = TIPI_CONTATTO[fc.tipo?.value]?.[0] || 'Cliente';
+    const note = String(fc.note?.value || '').trim().slice(0, 300);
+    box.hidden = false;
+    if (!lsGet('gemini_key')) {
+      box.innerHTML = '<p class="muted" style="margin:0">Senza chiave Gemini non posso cercare in rete (Altro › Assistente IA).</p>' + htmlRisultatiSito({}, dominioEmail, nome);
+      return;
+    }
+    btn.disabled = true; btn.classList.add('analisi');
+    box.innerHTML = '<p class="muted" style="margin:0">Cerco il sito con Google Search…</p>';
+    try {
+      box.innerHTML = htmlRisultatiSito({ ...(await cercaSitoIA({ nome, tipo, dominioEmail, note })), cercato: true }, dominioEmail, nome);
+    } catch (err) {
+      box.innerHTML = `<p class="err">${esc(messaggioIA(err))}</p>` + htmlRisultatiSito({}, dominioEmail, nome);
+    } finally {
+      btn.disabled = false; btn.classList.remove('analisi');
+    }
+  });
+  aggiorna();
+  if (auto && !campo.value.trim()) btn.click();
 }
 
 function promptSmart(testo) {
@@ -2870,6 +3070,11 @@ function openContattoForm(opt = {}) {
         <label class="field"><span>Telefono</span><input class="input" name="telefono" type="tel" value="${esc(c.telefono)}"></label>
         <label class="field"><span>Email</span><input class="input" name="email" type="email" value="${esc(c.email)}"></label>
       </div>
+      <div class="field"><label for="campoSito">Sito web</label>
+        <input class="input" id="campoSito" name="sito" type="text" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" maxlength="300" placeholder="esempio.it" value="${esc(c.sito)}">
+        <button type="button" class="btn btn-secondary btn-cerca-sito" id="btnCercaSito">${icon('spark', 16)} Cerca sito con AI</button>
+        <div id="risultatiSito" class="risultati-sito" aria-live="polite" hidden></div>
+      </div>
       <label class="field"><span>Note</span><textarea class="input" name="note" maxlength="1000">${esc(c.note)}</textarea></label>
       <div class="actions">
         <button type="button" class="btn btn-secondary" data-act="chiudi">Annulla</button>
@@ -2884,6 +3089,7 @@ function openContattoForm(opt = {}) {
     const fc = m.querySelector('#fc');
     const lista = m.querySelector('#listaMandanti');
     attivaTipo(fc, t => { m.querySelector('#campoMandanti').hidden = t !== 'rappresentante'; })(fc.tipo.value);
+    collegaSito(fc, !!opt.cercaSito);
     m.querySelector('#addMandante').addEventListener('click', () => {
       lista.insertAdjacentHTML('beforeend', rigaMandante());
       lista.lastElementChild.querySelector('input').focus();
@@ -3153,10 +3359,14 @@ function etichettaVoce(v) {
 // Con l'appuntamento il messaggio WhatsApp è precompilato e, se c'è un luogo, compare anche Naviga.
 function azioniContatto(c, appId = '', cid = '', a = null) {
   const wa = c.telefono ? linkWhatsApp(c.telefono, a ? messaggioWhatsApp(a, c) : '') : '#';
-  return `<div class="azioni-contatto${a?.luogo ? ' quattro' : ''}">
+  // Web (v2.19.6): sito salvato oppure dominio dell'email aziendale (bordo tratteggiato = non verificato).
+  const web = sitoDi(c);
+  const n = 3 + (a?.luogo ? 1 : 0) + (web ? 1 : 0);
+  return `<div class="azioni-contatto${n === 4 ? ' quattro' : n === 5 ? ' cinque' : ''}">
     <a class="az-tel" data-act="rapida" href="${c.telefono ? 'tel:' + esc(c.telefono) : '#'}" aria-disabled="${!c.telefono}">${icon('phone', 20)}Chiama</a>
     <a class="az-wa" data-act="rapida" href="${esc(wa)}" target="_blank" rel="noopener" aria-disabled="${!c.telefono}">${icon('chat', 20)}WhatsApp</a>
     ${a?.luogo ? `<a class="az-map" data-act="rapida" href="${esc(linkNavigazione(a.luogo))}" target="_blank" rel="noopener">${icon('nav', 20)}Naviga</a>` : ''}
+    ${web ? `<a class="az-web${web.daEmail ? ' non-verificato' : ''}" data-act="rapida" href="${esc(web.url)}" target="_blank" rel="noopener noreferrer" title="${web.daEmail ? 'Dal dominio email, non verificato: ' : 'Sito: '}${esc(nomeSito(web.url))}">${icon('globe', 20)}Web</a>` : ''}
     <button type="button" class="az-mail" data-act="email" data-app-id="${esc(appId)}" data-contatto-id="${esc(cid)}" aria-disabled="${!c.email}">${icon('mail', 20)}Email</button>
   </div>`;
 }
@@ -3681,6 +3891,9 @@ function openContatto(cid) {
       <div class="griglia verticale">
         <div><div class="cella-k">Telefono</div><div style="font-size:16px">${c.telefono ? `<a href="tel:${esc(c.telefono)}">${esc(c.telefono)}</a>` : '—'}</div></div>
         <div><div class="cella-k">Email</div><div style="font-size:16px;overflow-wrap:anywhere">${c.email ? esc(c.email) : '—'}</div></div>
+        <div><div class="cella-k">Sito web</div>${normalizzaSito(c.sito)
+          ? `<div style="font-size:16px;overflow-wrap:anywhere"><a href="${esc(normalizzaSito(c.sito))}" target="_blank" rel="noopener noreferrer">${esc(nomeSito(normalizzaSito(c.sito)))}</a></div>`
+          : `<div class="sito-vuoto"><span class="muted">—</span><button type="button" class="btn btn-ghost" data-act="cercaSitoContatto" data-id="${esc(cid)}">${icon('spark', 16)} Cerca sito con AI</button></div>`}</div>
       </div>
       ${c.note ? `<div class="sezione"><h2>Note</h2><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(c.note)}</div></div>` : ''}
       <button class="btn btn-primary" data-act="apriAppContatto" data-id="${esc(cid)}" style="min-height:44px">${icon('plus', 16)} Nuovo appuntamento</button>
@@ -4045,6 +4258,7 @@ const ACTIONS = {
   stato: d => cambiaStato(d.id, d.s).then(() => aggiornaLivello()),
   eliminaApp: d => { if (window.confirm('Eliminare questo appuntamento?')) eliminaApp(d.id).then(res => { if (res !== 'errore') { closeModal(); aggiornaLivello(); } }); },
   modificaContatto: d => openContattoForm({ id: d.id }),
+  cercaSitoContatto: d => openContattoForm({ id: d.id, cercaSito: true }),
   eliminaContatto: d => {
     if (window.confirm('Eliminare questo contatto?')) eliminaContatto(d.id).then(res => { if (res !== 'errore' && res !== 'bloccato' && livelli.length) { closeModal(); aggiornaLivello(); } });
   },
