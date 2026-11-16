@@ -14,7 +14,17 @@ La versione si trova in due punti, da cambiare sempre insieme:
 | 2.19.4 | Pubblicata in precedenza, sostituita il 16/11/2026 dalla 2.19.5 | Nuova Agenda "a colpo d'occhio" e colori meno scuri (vedi sotto). Parte dalla 2.19.3. |
 | 2.19.5 | Pubblicata il 16/11/2026, sostituita in giornata dalla 2.19.6 | Restyling grafico mobile-first, solo CSS (vedi sotto). Parte dalla 2.19.4. |
 | 2.19.6 | Pubblicata il 16/11/2026 | Sito web del contatto, pulsante Web e ricerca del sito con AI (vedi sotto). Parte dalla 2.19.5. |
+| 2.19.7 | Pubblicata il 17/11/2026 | Ricerca sito AI: aziende rappresentate e recupero dagli errori 429 (vedi sotto). Parte dalla 2.19.6. |
 | 2.20.0 | Proposta | Backup completo e ripristino (richiesta #32, oggi numerata 2.19.0): va rinumerata 2.20.0 e unita dopo la 2.19.4. |
+
+## 2.19.7
+
+**Ricerca del sito con AI: aziende rappresentate ed errori 429**
+
+- Aziende rappresentate: per i contatti di tipo Rappresentante la ricerca usa tutte le aziende del campo "Aziende rappresentate" (`mandanti`, solo in lettura), con priorità sul nome della persona. Con più aziende si chiede a Gemini il sito di ciascuna e i risultati riportano l'azienda a cui si riferiscono. Anche "Cerca su Google" cerca le aziende (`"Azienda A" OR "Azienda B" sito ufficiale`). Senza aziende resta la ricerca per nome di prima. Nessun cambiamento ai dati salvati.
+- Errori 429 con Google Search: attesa di 1500 ms e passaggio al modello di riserva successivo, una sola volta per modello (404 e 5xx come prima). L'attesa scatta solo se c'è un altro tentativo da fare: una sola attesa prima della seconda fase, nessuna dopo l'ultimo tentativo. Se tutti i modelli rispondono 429, Gemini viene richiamato senza Google Search: si accettano solo homepage `https://` valide, mostrate come "Suggerimento AI · verifica prima di salvare" accanto ad "Apri" e mai salvate in automatico.
+- Messaggi di errore distinti per la seconda fase: 429 (troppe richieste, riprova tra un minuto), 400/401/403 (richiesta o chiave API non valida), 5xx (servizio Gemini temporaneamente non disponibile), errore di rete (impossibile contattare Gemini) e risposta illeggibile. Un 429 seguito da un altro errore non avvia la seconda fase. Resta sempre il link "Cerca su Google" precompilato con le aziende.
+- `chiediGemini()` non è cambiata: la ricerca del sito usa una funzione propria.
 
 ## 2.19.6
 
