@@ -679,6 +679,94 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 .sito-google{width:100%;height:64px;border:0;border-radius:var(--r-md);background:transparent}
 .sito-vuoto{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .sito-vuoto .btn{min-height:var(--tap);padding-inline:8px}
+
+/* =====================================================================
+   v2.20.0 — Restyling strutturale Agenda & Card ("Showroom Bento & Azione Rapida")
+   Struttura in renderAgenda / riepilogoGiorno / voceApp / rapide / openDettaglio;
+   eventi solo tramite data-act esistenti (+ ACTIONS.kpi). Nessun blocco precedente riscritto.
+   Variabili --v220-*: tema scuro Blu Ardesia (:root) e tema chiaro ([data-theme="light"]).
+   ===================================================================== */
+:root{
+  --v220-tap:48px;
+  --v220-line:#3e4e68;--v220-muted:#a9b5c7;
+  --v220-tab-on:#a9c8ff;--v220-tab-ind:rgba(112,170,255,.22);
+  --v220-sticky-shadow:0 8px 22px rgba(0,0,0,.35)
+}
+:root[data-theme="light"]{
+  --v220-line:#d7dfeb;--v220-muted:#5b6678;
+  --v220-tab-on:#1740b0;--v220-tab-ind:#dbe7fd;
+  --v220-sticky-shadow:0 8px 22px rgba(30,60,140,.22)
+}
+
+/* Testata compatta e fissa in alto */
+.banda.v220{position:sticky;top:0;z-index:6;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;gap:8px;border-radius:0 0 22px 22px;box-shadow:var(--v220-sticky-shadow)}
+.banda.v220 .head h1{font-size:21px}
+.banda.v220 .head .card-kicker{font-size:11px}
+.banda.v220 .sett-nav{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:8px}
+.banda.v220 .sett-nav .btn-icon{min-width:40px;min-height:40px}
+.banda.v220 .chip-oggi{min-height:32px;padding:4px 14px;border-radius:var(--r-pill);font-size:13px;font-weight:750}
+.banda.v220 .chip-oggi.e-oggi{background:rgba(255,255,255,.16)!important;color:#fff!important;border-color:rgba(255,255,255,.55)!important}
+.banda.v220 .week{grid-template-columns:repeat(var(--nd,7),minmax(0,1fr));gap:6px}
+.banda.v220 .week-day{min-height:var(--v220-tap);padding:6px 2px;gap:2px;border-radius:12px}
+.banda.v220 .week-day .wn{font-size:18px}
+
+/* Striscia KPI cliccabile (i riquadri ora sono pulsanti) */
+.riep.v220>button{-webkit-appearance:none;appearance:none;font:inherit;cursor:pointer;touch-action:manipulation;min-width:0;min-height:var(--v220-tap);display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 8px;text-align:center;border-radius:var(--v219-radius-sm);border:1px solid var(--v219-border);box-shadow:var(--v219-shadow-card);transition:box-shadow .18s ease,opacity .18s ease,transform .1s ease}
+.riep.v220>button::before{content:"";display:block;flex:none;width:19px;height:19px;margin-bottom:3px;background-color:currentColor;opacity:.9;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain}
+.riep.v220>button:active{transform:scale(.97)}
+.riep.v220>button.attivo{border-color:currentColor;box-shadow:inset 0 0 0 1px currentColor,var(--v219-shadow);background:color-mix(in srgb,currentColor 12%,var(--v219-surface))}
+.riep.v220:has(.attivo)>button:not(.attivo){opacity:.55}
+
+/* Card dell'Agenda a tre fasce */
+.lista2:has(>.app-item.v220)::before{display:none}
+.app-item.v220{grid-template-columns:56px minmax(0,1fr);gap:8px}
+.app-item.v220 .tcol{padding:12px 12px 0 0;text-align:right}
+.app-item.v220 .tcol::before{left:auto;right:0;top:10px;bottom:2px;width:4px;height:auto;border:0;border-radius:4px;background:var(--v219-st,var(--st-prog))}
+.app-item.v220.spento .tcol::before{opacity:.5}
+.app-item.v220 .ora1{font-size:20px;font-weight:800}
+.app-item.v220 .ora2{font-size:12.5px}
+.app-item.v220>.box[data-stato]{border-left:1px solid var(--v219-border)}
+.app-item.v220 .box{padding:12px;gap:8px}
+.app-item.v220 .r1 .card-title{font-size:16px;font-weight:750;line-height:1.25}
+.app-item.v220 .c-tags{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:4px;min-width:0}
+.app-item.v220 .c-tags .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis;min-height:22px;padding:3px 8px;font-size:11px}
+.app-item.v220 .r-ogg{display:flex;justify-content:space-between;align-items:center;gap:10px;min-width:0}
+.app-item.v220 .ogg{flex:1;min-width:0;font-size:14px;color:var(--v220-muted);overflow-wrap:anywhere}
+.app-item.v220 .imp{flex:none;font-size:19px;padding:2px 10px;border-radius:10px;background:color-mix(in srgb,currentColor 12%,transparent)}
+.rapide>a span{display:none}
+.rapide .r-web svg{color:var(--accent-text)}
+.rapide .r-web.non-verificato{border-style:dashed}
+.app-item.v220 .rapide{display:flex;gap:6px;margin-top:2px;padding-top:10px;border-top:1px solid var(--v220-line)}
+.app-item.v220 .rapide>a{flex:1 1 0;min-width:0;width:auto;height:auto;min-height:var(--v220-tap);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border-radius:12px;font-size:11.5px;font-weight:700}
+.app-item.v220 .rapide>a span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.app-item.v220 .rapide>a svg{width:18px;height:18px}
+
+/* Scheda dettaglio: pillole di cambio stato e azioni da 48 px */
+.pillole-stato{display:flex;gap:8px;flex-wrap:wrap}
+.pillole-stato:empty{display:none}
+.pillole-stato>.btn{min-height:var(--v220-tap);padding:0 16px;border-radius:var(--r-pill);font-weight:700}
+.pillole-stato>[data-s="confermato"]{color:var(--st-conf);background:var(--st-conf-bg);border-color:color-mix(in srgb,var(--st-conf) 40%,transparent)}
+.pillole-stato>[data-s="completato"]{color:var(--st-comp);background:var(--st-comp-bg);border-color:color-mix(in srgb,var(--st-comp) 40%,transparent)}
+.pillole-stato>[data-s="annullato"]{color:var(--st-late);background:var(--st-late-bg);border-color:color-mix(in srgb,var(--st-late) 40%,transparent)}
+.pillole-stato>[data-s="programmato"]{color:var(--st-prog);background:var(--st-prog-bg);border-color:color-mix(in srgb,var(--st-prog) 40%,transparent)}
+.page .azioni-contatto>*{min-height:var(--v220-tap);padding:6px 2px;gap:3px}
+.page .azioni-contatto>* svg{width:19px;height:19px}
+
+/* Barra inferiore: stesse 5 voci, indicatore più contrastato, tocco da 48 px */
+.tab{min-height:var(--v220-tap);font-weight:650;color:var(--v220-muted)}
+.tab[aria-current="page"],.tab[aria-current="page"] svg{color:var(--v220-tab-on)}
+.tab[aria-current="page"]{font-weight:750}
+.tab-ind{background:var(--v220-tab-ind);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--v220-tab-on) 35%,transparent)}
+
+@media (max-width:400px){
+  .banda.v220{padding-inline:12px}
+  .banda.v220 .week{gap:4px}
+  .riep.v220>button{padding:10px 5px}
+  .app-item.v220{grid-template-columns:50px minmax(0,1fr);gap:6px}
+  .app-item.v220 .tcol{padding-right:10px}
+  .app-item.v220 .ora1{font-size:18px}
+  .app-item.v220 .rapide{gap:4px}
+}
 </style>
 </head>
 <body>
@@ -723,7 +811,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.19.7';
+const APP_VERSION = '2.20.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -2267,20 +2355,27 @@ function render() {
 function voceApp(a) {
   const c = a.contatto;
   const spento = a.stato === 'annullato' || (a.data === todayISO() && passato(a)) || a.data < todayISO();
-  const meta = [a.azienda || '', c.nome || '(contatto eliminato)', a.luogo].filter(Boolean).map(esc).join(' · ');
   const inRitardo = a.data < todayISO() && !CHIUSI.includes(a.stato);
   const mov = conPagamento(a) && haImporto(a) ? movimentoDi(a) : '';
-  return `<div class="app-item v2${spento ? ' spento' : ''}" data-sc="${esc(a.stato)}" data-act="apri" data-id="${esc(a.id)}" role="button" tabindex="0">
+  // v2.20.0: tre fasce. Sinistra: orario grande e barra di stato. Centro: contatto, categoria,
+  // azienda rappresentata (mandantiDi, solo lettura), oggetto e importo. In basso: azioni rapide.
+  const aziende = a.azienda && tipoDi(c) === 'rappresentante' ? [a.azienda] : mandantiDi(c);
+  const tagAz = aziende.length ? `<span class="tag tag-tipo" data-tipo="rappresentante">${esc(aziende[0])}${aziende.length > 1 ? ` +${aziende.length - 1}` : ''}</span>` : '';
+  const oggetto = [a.motivo, a.luogo].filter(Boolean).map(esc).join(' · ');
+  return `<div class="app-item v2 v220${spento ? ' spento' : ''}" data-sc="${esc(a.stato)}" data-act="apri" data-id="${esc(a.id)}" role="button" tabindex="0">
     <div class="tcol"><div class="ora1">${esc(a.ora)}</div><div class="ora2" aria-label="fine ${esc(fineApp(a))}">${esc(fineApp(a))}</div></div>
     <div class="box glass" data-stato="${esc(a.stato)}"${mov ? ` data-mov="${mov}"` : ''}${inRitardo ? ' data-ritardo' : ''}>
       <div class="r1">
         <div class="avatar" data-t="${tintaAvatar(c.nome)}" aria-hidden="true">${esc(iniziali(c.nome || '?'))}</div>
-        <div><div class="card-title" style="text-decoration:${a.stato === 'annullato' ? 'line-through' : 'none'};overflow-wrap:anywhere">${esc(a.motivo || c.nome || 'Appuntamento')}</div>
-        <div class="card-meta">${meta}</div></div>
+        <div><div class="card-title" style="overflow-wrap:anywhere">${esc(c.nome || '(contatto eliminato)')}</div>
+        <div class="c-tags">${c.nome ? tagTipo(c) : ''}${tagAz}${!tagAz && a.azienda ? `<span class="card-meta">${esc(a.azienda)}</span>` : ''}</div></div>
+      </div>
+      <div class="r-ogg">
+        <div class="ogg" style="text-decoration:${a.stato === 'annullato' ? 'line-through' : 'none'}">${oggetto || 'Appuntamento'}</div>
+        ${mov ? `<span class="imp" style="color:${coloreMov(a)}">${esc(importoFirmato(a))}</span>` : ''}
       </div>
       <div class="r2">
         <span class="tags">${a.rinvii ? `<span class="tag tag-warn">${esc(a.rinvii)}× rinviato</span>` : ''}${inRitardo ? '<span class="tag tag-bad">in ritardo</span>' : ''}${tagStato(a)}${tagPagamento(a)}</span>
-        ${mov ? `<span class="imp" style="color:${coloreMov(a)}">${esc(importoFirmato(a))}</span>` : ''}
       </div>
       ${a.stato === 'annullato' ? '' : rapide(c, a)}
     </div>
@@ -2311,9 +2406,19 @@ function prossimoInEvidenza(attivi) {
 }
 
 // Proposta: riepilogo del giorno in tre caselle colorate.
+// v2.20.0: i riquadri sono pulsanti (data-act="kpi") che filtrano l'elenco; ritoccandoli si torna a tutto.
 function riepilogoGiorno(attivi, etichetta) {
   const t = totaliAperti(attivi);
-  return `<div class="riep"><div class="r-n"><span>${esc(etichetta)}</span><b>${attivi.length}</b></div><div class="r-in"><span>Da incassare</span><b>${esc(euro(t.entrata || 0))}</b></div><div class="r-out"><span>Da pagare</span><b>${esc(euro(t.uscita || 0))}</b></div></div>`;
+  const k = (chiave, cls, lbl, val) =>
+    `<button type="button" class="${cls}${S.kpi === chiave ? ' attivo' : ''}" data-act="kpi" data-k="${chiave}" aria-pressed="${S.kpi === chiave}" aria-label="${esc(lbl)}: ${esc(val)}${S.kpi === chiave ? ' (filtro attivo, tocca per togliere)' : ' (tocca per filtrare)'}"><span>${esc(lbl)}</span><b>${esc(val)}</b></button>`;
+  return `<div class="riep v220">${k('impegni', 'r-n', etichetta, String(attivi.length))}${k('entrata', 'r-in', 'Da incassare', euro(t.entrata || 0))}${k('uscita', 'r-out', 'Da pagare', euro(t.uscita || 0))}</div>`;
+}
+
+// v2.20.0: criteri del filtro KPI, sugli stessi dati dei totali (solo lettura).
+function filtraKpi(items, k) {
+  if (k === 'impegni') return items.filter(a => a.stato !== 'annullato');
+  if (k === 'entrata' || k === 'uscita') return items.filter(a => a.stato !== 'annullato' && haImporto(a) && movimentoDi(a) === k && residuo(a) > 0);
+  return items;
 }
 
 // Fondo della scheda: importo con stato del pagamento, poi le azioni rapide.
@@ -2324,15 +2429,18 @@ function rigaRapide(a, c) {
   return pag + (a.stato === 'annullato' ? '' : rapide(c, a));
 }
 
-// Pulsanti rapidi WhatsApp / Chiama / Naviga (48 px). data-act="rapida" evita che il tocco apra la scheda.
+// Pulsanti rapidi Chiama / WhatsApp / Naviga / Web (48 px). data-act="rapida" evita che il tocco apra la scheda.
+// v2.20.0: Web da sitoDi(c) in sola lettura (bordo tratteggiato = dominio email, non verificato), come in azioniContatto().
 function rapide(c, a = null) {
   const nome = esc(c.nome || '');
   const b = [];
   if (c.telefono) {
-    b.push(`<a class="r-wa" data-act="rapida" href="${esc(linkWhatsApp(c.telefono, a ? messaggioWhatsApp(a, c) : ''))}" target="_blank" rel="noopener" aria-label="WhatsApp a ${nome}">${icon('chat', 21)}</a>`);
-    b.push(`<a class="r-tel" data-act="rapida" href="tel:${esc(c.telefono)}" aria-label="Chiama ${nome}">${icon('phone', 21)}</a>`);
+    b.push(`<a class="r-tel" data-act="rapida" href="tel:${esc(c.telefono)}" aria-label="Chiama ${nome}">${icon('phone', 21)}<span>Chiama</span></a>`);
+    b.push(`<a class="r-wa" data-act="rapida" href="${esc(linkWhatsApp(c.telefono, a ? messaggioWhatsApp(a, c) : ''))}" target="_blank" rel="noopener" aria-label="WhatsApp a ${nome}">${icon('chat', 21)}<span>WhatsApp</span></a>`);
   }
-  if (a?.luogo) b.push(`<a class="r-map" data-act="rapida" href="${esc(linkNavigazione(a.luogo))}" target="_blank" rel="noopener" aria-label="Naviga verso ${esc(a.luogo)}">${icon('nav', 21)}</a>`);
+  if (a?.luogo) b.push(`<a class="r-map" data-act="rapida" href="${esc(linkNavigazione(a.luogo))}" target="_blank" rel="noopener" aria-label="Naviga verso ${esc(a.luogo)}">${icon('nav', 21)}<span>Naviga</span></a>`);
+  const web = sitoDi(c);
+  if (web) b.push(`<a class="r-web${web.daEmail ? ' non-verificato' : ''}" data-act="rapida" href="${esc(web.url)}" target="_blank" rel="noopener noreferrer" aria-label="${web.daEmail ? 'Sito dal dominio email, non verificato: ' : 'Sito web: '}${esc(nomeSito(web.url))}" title="${web.daEmail ? 'Dal dominio email, non verificato: ' : 'Sito: '}${esc(nomeSito(web.url))}">${icon('globe', 21)}<span>Web</span></a>`);
   return b.length ? `<div class="rapide">${b.join('')}</div>` : '';
 }
 
@@ -2343,8 +2451,12 @@ function renderAgenda() {
   const sel = S.giorno;
   const selD = isoToDate(sel);
   const lun = inizioSettimana(selD);
-  const giorni = Array.from({ length: 7 }, (_, i) => isoOf(addDays(lun, i)));
+  const tutti7 = Array.from({ length: 7 }, (_, i) => isoOf(addDays(lun, i)));
   const conApp = new Set(Object.values(S.appuntamenti).filter(a => a.stato !== 'annullato').map(a => a.data));
+  // v2.20.0: Lun–Sab; la domenica compare se ha appuntamenti o se è il giorno selezionato.
+  const giorni = conApp.has(tutti7[6]) || sel === tutti7[6] ? tutti7 : tutti7.slice(0, 6);
+  // v2.20.0: il filtro KPI vale solo per il giorno su cui è stato scelto.
+  if (S.kpiGiorno !== sel) { S.kpi = ''; S.kpiGiorno = sel; }
   const dom = addDays(lun, 6);
   const weekLabel = lun.getMonth() === dom.getMonth()
     ? `${lun.getDate()} – ${dom.getDate()} ${dom.toLocaleDateString('it-IT', { month: 'long' })}`
@@ -2362,17 +2474,26 @@ function renderAgenda() {
   const anima = S.animaGiorno;
   S.animaGiorno = false;
   const attivi = items.filter(a => a.stato !== 'annullato');
-  const summary = attivi.length
-    ? `${plurale(attivi.length, 'appuntamento', 'appuntamenti')} · dalle ${attivi[0].ora} alle ${fineApp(attivi[attivi.length - 1])}`
-      + (sovrappostiNelGiorno(attivi) ? ' · <span style="color:var(--color-warn)">sovrapposizioni</span>' : '')
+  // v2.20.0: filtro della striscia KPI (solo visualizzazione, i totali dei riquadri restano quelli del giorno).
+  const filtrati = S.kpi ? filtraKpi(items, S.kpi) : items;
+  // v2.20.0: con un filtro attivo la riga di riepilogo conta solo gli appuntamenti filtrati.
+  const contati = S.kpi ? filtrati.filter(a => a.stato !== 'annullato') : attivi;
+  const segnoFiltro = S.kpi === 'entrata' || S.kpi === 'uscita' ? ' (filtro attivo)' : '';
+  const summary = contati.length
+    ? `${plurale(contati.length, 'appuntamento', 'appuntamenti')}${segnoFiltro} · dalle ${contati[0].ora} alle ${fineApp(contati[contati.length - 1])}`
+      + (sovrappostiNelGiorno(contati) ? ' · <span style="color:var(--color-warn)">sovrapposizioni</span>' : '')
 
-    : 'Nessun appuntamento';
+    : 'Nessun appuntamento' + segnoFiltro;
 
   const toggle = (modo, ic, label) =>
     `<button data-act="modoAgenda" data-m="${modo}" aria-label="${label}" aria-pressed="${S.modoAgenda === modo}">${icon(ic)}</button>`;
-
   let corpo = '';
-  if (!items.length) {
+  if (S.kpi && !filtrati.length) {
+    corpo = `<div class="glass vuoto">
+      <div class="card-title">Nessun appuntamento per questo filtro</div>
+      <button class="btn btn-secondary" data-act="kpi" data-k="${esc(S.kpi)}">Mostra tutti</button>
+    </div>`;
+  } else if (!items.length) {
     corpo = `<div class="glass vuoto">
       <span class="ico">${icon('cal', 26)}</span>
       <div class="card-title">Giornata libera</div>
@@ -2380,37 +2501,37 @@ function renderAgenda() {
       <button class="btn btn-primary" data-act="nuovoApp" data-data="${sel}">${icon('plus', 16)} Aggiungi appuntamento</button>
     </div>`;
   } else if (S.modoAgenda === 'timeline') {
-    corpo = timeline(items, sel === oggi);
+    corpo = timeline(filtrati, sel === oggi);
   } else {
     // (la linea "Ora" compare prima del primo appuntamento non ancora iniziato)
     const adesso = oraAdesso();
     let messo = sel !== oggi;
-    corpo = '<div class="lista2">' + items.map(a => {
+    corpo = '<div class="lista2">' + filtrati.map(a => {
       let pre = '';
       if (!messo && a.ora > adesso) {
         messo = true;
         pre = `<div class="ora-adesso"><span>Ora · ${adesso}</span><span></span></div>`;
       }
       return pre + voceApp(a);
-    }).join('') + (!messo && items.length ? `<div class="ora-adesso"><span>Ora · ${adesso}</span><span></span></div>` : '') + '</div>';
+    }).join('') + (!messo && filtrati.length ? `<div class="ora-adesso"><span>Ora · ${adesso}</span><span></span></div>` : '') + '</div>';
   }
 
   $('#main').innerHTML = `<div class="view">
-    <div class="banda">
+    <div class="banda v220">
     <div class="head">
       <div><div class="card-kicker">${esc(kicker)}</div><h1>${esc(titolo)}</h1></div>
       <div style="display:flex;gap:8px;align-items:center"><div class="toggle">${toggle('lista', 'list', 'Lista')}${toggle('timeline', 'clock', 'Linea del tempo')}</div><button class="btn btn-ghost btn-icon" data-act="logout" aria-label="Esci" title="Esci">${icon('out')}</button></div>
     </div>
     <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="sett-nav">
         <button class="btn btn-ghost btn-icon" data-act="settimana" data-k="-7" aria-label="Settimana precedente">${icon('left')}</button>
-        <div style="display:flex;gap:10px;align-items:center">
+        <div style="display:flex;gap:10px;align-items:center;min-width:0">
           <span class="sett-lbl" style="font-size:13px;font-weight:600;color:var(--color-muted)">${esc(weekLabel)}</span>
-          ${sel !== oggi ? '<button class="btn btn-secondary chip-oggi" data-act="vaiOggi">Oggi</button>' : ''}
+          <button class="btn btn-secondary chip-oggi${sel === oggi ? ' e-oggi' : ''}" data-act="vaiOggi" aria-pressed="${sel === oggi}">Oggi</button>
         </div>
         <button class="btn btn-ghost btn-icon" data-act="settimana" data-k="7" aria-label="Settimana successiva">${icon('right')}</button>
       </div>
-      <div class="week">
+      <div class="week" style="--nd:${giorni.length}">
         ${giorni.map(g => {
           const cls = ['week-day', g === sel && 'sel', g === oggi && 'oggi', conApp.has(g) && 'has'].filter(Boolean).join(' ');
           const d = isoToDate(g);
@@ -2424,7 +2545,7 @@ function renderAgenda() {
     </div>
     </div>
     ${sel === oggi ? prossimoInEvidenza(attivi) : ''}
-    ${attivi.length ? riepilogoGiorno(attivi, sel === oggi ? 'Oggi' : 'Giorno') : ''}
+    ${attivi.length ? riepilogoGiorno(attivi, 'Impegni') : ''}
     <div class="summary">${summary}</div>
     <div class="${anima ? 'entra-giorno' : ''}" style="display:flex;flex-direction:column;gap:16px">${corpo}${rigaCompletati}</div>
   </div>`;
@@ -3938,6 +4059,7 @@ function openDettaglio(aid) {
           ${a.rinvii ? `<span class="tag tag-warn">rimandato ${esc(a.rinvii)}×</span>` : ''}
           ${inRitardo ? '<span class="tag tag-bad">in ritardo</span>' : ''}
         </div>
+        <div class="pillole-stato" role="group" aria-label="Cambia stato">${azioniStato}</div>
         ${a.azienda ? (tipoDi(c) === 'rappresentante' ? `<div class="chips-mandanti">${chipAzienda(a.azienda, a.contattoId)}</div>` : `<div class="card-kicker" style="font-size:11px">${esc(a.azienda)}</div>`) : ''}
         <h1 style="font-size:${dimTitolo(a.motivo || c.nome || 'Appuntamento')}px;overflow-wrap:anywhere;text-decoration:${a.stato === 'annullato' ? 'line-through' : 'none'}">${esc(a.motivo || c.nome || 'Appuntamento')}</h1>
       </div>
@@ -4006,7 +4128,6 @@ function openDettaglio(aid) {
       <div class="sezione">
         <h2>Azioni</h2>
         <div style="display:flex;flex-wrap:wrap;gap:8px">
-          ${azioniStato}
           <button class="btn btn-secondary" data-act="rimanda" data-id="${esc(aid)}">${icon('move', 16)} Rimanda</button>
           <button class="btn btn-secondary btn-danger" data-act="eliminaApp" data-id="${esc(aid)}">${icon('trash', 16)} Elimina</button>
         </div>
@@ -4444,6 +4565,8 @@ const ACTIONS = {
   vediCompletati: () => { S.vediCompletati = !S.vediCompletati; render(); },
   settimana: d => { S.animaGiorno = true; S.giorno = isoOf(addDays(isoToDate(S.giorno || todayISO()), Number(d.k))); render(); },
   vaiOggi: () => { S.animaGiorno = true; S.giorno = todayISO(); render(); },
+  // v2.20.0: filtro della striscia KPI (lo stesso riquadro lo toglie; cambiando giorno si azzera da solo).
+  kpi: d => { S.kpi = S.kpi === d.k ? '' : d.k; S.kpiGiorno = S.giorno || todayISO(); S.animaGiorno = true; render(); },
   // calendario
   mese: d => {
     const p = isoToDate(S.mese);

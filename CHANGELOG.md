@@ -14,8 +14,21 @@ La versione si trova in due punti, da cambiare sempre insieme:
 | 2.19.4 | Pubblicata in precedenza, sostituita il 16/11/2026 dalla 2.19.5 | Nuova Agenda "a colpo d'occhio" e colori meno scuri (vedi sotto). Parte dalla 2.19.3. |
 | 2.19.5 | Pubblicata il 16/11/2026, sostituita in giornata dalla 2.19.6 | Restyling grafico mobile-first, solo CSS (vedi sotto). Parte dalla 2.19.4. |
 | 2.19.6 | Pubblicata il 16/11/2026, sostituita dalla 2.19.7 | Sito web del contatto, pulsante Web e ricerca del sito con AI (vedi sotto). Parte dalla 2.19.5. |
-| 2.19.7 | Pubblicata il 17/11/2026 | Ricerca sito AI: aziende rappresentate e recupero dagli errori 429 (vedi sotto). Parte dalla 2.19.6. |
-| 2.20.0 | Proposta | Backup completo e ripristino (richiesta #32, oggi numerata 2.19.0): va rinumerata 2.20.0 e unita dopo la 2.19.4. |
+| 2.19.7 | Pubblicata il 17/11/2026, sostituita dalla 2.20.0 | Ricerca sito AI: aziende rappresentate e recupero dagli errori 429 (vedi sotto). Parte dalla 2.19.6. |
+| 2.20.0 | Pubblicata il 17/11/2026 | Restyling strutturale Agenda & Card (vedi sotto). Parte dalla 2.19.7. |
+| 2.21.0 | Proposta | Backup completo e ripristino (richiesta #32, oggi numerata 2.19.0): va rinumerata 2.21.0 e unita dopo la 2.20.0. |
+
+## 2.20.0
+
+**Restyling strutturale Agenda & Card ("Showroom Bento & Azione Rapida")**
+
+- Testata dell'Agenda compatta e fissa in alto (sticky) con selettore dei giorni e pillola "Oggi" sempre visibile.
+- Settimana Lun–Sab con giorni più ampi; la domenica compare da sola se ha appuntamenti nella settimana mostrata o se è il giorno selezionato.
+- Striscia KPI cliccabile (Impegni, Da incassare, Da pagare): filtra l'elenco del giorno, il riquadro attivo è evidenziato; ritoccandolo o cambiando giorno si torna alla vista completa.
+- Card dell'Agenda a tre fasce: orario grande con barra colorata per stato, nome del contatto con categoria e azienda rappresentata (`mandantiDi`, solo lettura), oggetto e importo, barra di azioni rapide Chiama / WhatsApp / Naviga / Web (Web da `sitoDi`, bordo tratteggiato se dal dominio email).
+- Scheda dettaglio: pulsanti di cambio stato in alto come pillole (stessa azione `stato` di prima), azioni del contatto da 48 px.
+- Barra inferiore: stesse 5 voci, indicatore attivo più contrastato, aree di tocco da 48 px.
+- Nuovo blocco CSS `/* v2.20.0 */` con variabili `--v220-*` per tema scuro e chiaro. Nessun cambiamento a salvataggi, schema Firebase, ricerca AI, Google, parser locale, Assegni e Atlantis.
 
 ## 2.19.7
 
