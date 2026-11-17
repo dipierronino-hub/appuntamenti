@@ -7,9 +7,13 @@
 //   node scripts/atlantis-sync.mjs nuovi [giorni]    solo i contatti con appuntamenti nuovi o modificati dall'ultimo aggiornamento (JSON)
 //   node scripts/atlantis-sync.mjs scrivi <file>     scrive i riepiloghi preparati in <file> (JSON)
 //
+// Codici di uscita di "scrivi" (v2.21.0): 0 = tutti i riepiloghi scritti; 3 = nessun errore ma
+// sincronizzazione incompleta (contatti saltati o in conflitto); 1 = errori (file, rete o Firebase).
+//
 // Serve la variabile d'ambiente FIREBASE_DB_SECRET (Secret del database di Firebase).
 // Le richieste passano da curl, che usa il proxy dell'ambiente cloud.
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const DB = 'https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app';
@@ -33,6 +37,77 @@ function richiesta(metodo, percorso, corpo) {
   }
 }
 
+// Firma dell'identità di un contatto (v2.21.0). "elenco" la calcola, la routine la copia nel file di
+// "scrivi", "scrivi" la ricalcola a ogni lettura (anche dopo un 412): se non coincide, il contatto è un
+// altro soggetto oppure è stato modificato dopo la ricerca in Atlantis, e non si scrive nulla.
+// Deterministica: stessi valori salvati = stessa firma. Senza `creato` numerico l'identità è incerta
+// e la firma è null: quel contatto non riceve scritture (si risolve aprendo e salvando il contatto nell'app).
+const CAMPI_FIRMA = ['creato', 'nome', 'tipo', 'telefono', 'email', 'mandanti'];
+function firmaContatto(c) {
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+  if (typeof c.creato !== 'number' || !Number.isFinite(c.creato)) return null;
+  const valori = CAMPI_FIRMA.map(k => (c[k] === undefined ? null : c[k]));
+  return 'v1:' + createHash('sha256').update(JSON.stringify(valori)).digest('hex');
+}
+
+// Richiesta che restituisce anche stato HTTP ed ETag (richieste condizionate di Firebase, v2.21.0).
+// Non usa --fail-with-body: il 412 (conflitto) è una risposta attesa, la gestisce chi chiama.
+// Un errore di rete lancia un'eccezione (senza il Secret): la gestisce chi chiama, contatto per contatto.
+function richiestaEtag(metodo, percorso, corpo, intestazioni = {}) {
+  const url = `${DB}/${percorso}.json?auth=${encodeURIComponent(SECRET)}`;
+  const args = ['-sS', '-i', '-X', metodo, url];
+  for (const [k, v] of Object.entries(intestazioni)) args.push('-H', `${k}: ${v}`);
+  if (corpo !== undefined) args.push('-H', 'Content-Type: application/json', '--data-binary', '@-');
+  let out;
+  try {
+    out = execFileSync('curl', args, { input: corpo !== undefined ? JSON.stringify(corpo) : undefined, encoding: 'utf8' });
+  } catch (e) {
+    throw new Error(`errore di rete (${metodo}): ${String(e.stderr || e.message).split(SECRET).join('***').trim().slice(0, 300)}`);
+  }
+  // Con un proxy curl può mostrare più blocchi di intestazioni (es. "200 Connection established"): vale l'ultimo.
+  let testa = '', resto = out;
+  while (/^HTTP\/\S+ \d{3}/.test(resto)) {
+    const fine = /\r?\n\r?\n/.exec(resto);
+    if (!fine) { testa = resto; resto = ''; break; }
+    testa = resto.slice(0, fine.index);
+    resto = resto.slice(fine.index + fine[0].length);
+  }
+  const stato = Number(/^HTTP\/\S+ (\d{3})/.exec(testa)?.[1] || 0);
+  const etag = /^etag:[ \t]*(.+?)[ \t]*$/im.exec(testa)?.[1] || '';
+  let dati = null;
+  try { dati = resto.trim() ? JSON.parse(resto) : null; } catch (e) { dati = resto; }
+  return { stato, etag, dati };
+}
+
+// Scrive il riepilogo Atlantis riscrivendo l'intero contatto con una richiesta condizionata (ETag):
+// Firebase accetta il PUT solo se contatti/<cid> è identico a quando è stato letto. A ogni lettura, prima
+// del PUT, la firma del contatto deve coincidere con quella calcolata da "elenco": così i dati Atlantis di
+// un soggetto non finiscono mai su un soggetto diverso con lo stesso ID, nemmeno dopo un 412.
+// Su 412 rilegge, ricontrolla la firma e riprova, al massimo TENTATIVI_ETAG volte.
+// Esito { esito, motivo }: 'scritto' | 'assente' | 'senzaCreato' | 'diverso' | 'conflitto' | 'errore'.
+const TENTATIVI_ETAG = 3;
+function scriviAtlantisProtetto(uid, cid, firma, atlantis) {
+  const percorso = `users/${uid}/contatti/${cid}`;
+  try {
+    for (let t = 1; t <= TENTATIVI_ETAG; t++) {
+      const letto = richiestaEtag('GET', percorso, undefined, { 'X-Firebase-ETag': 'true' });
+      if (letto.stato !== 200 || !letto.etag) return { esito: 'errore', motivo: `lettura: HTTP ${letto.stato}${letto.etag ? '' : ', ETag mancante'}` };
+      const c = letto.dati;
+      if (!c || typeof c !== 'object' || Array.isArray(c) || typeof c.nome !== 'string' || !c.nome) return { esito: 'assente', motivo: 'contatto eliminato o senza nome' };
+      const attuale = firmaContatto(c);
+      if (!attuale) return { esito: 'senzaCreato', motivo: 'manca "creato": identità incerta' };
+      if (attuale !== firma) return { esito: 'diverso', motivo: `firma diversa da quella di "elenco" (tentativo ${t}): altro soggetto con lo stesso ID o contatto modificato` };
+      const scritto = richiestaEtag('PUT', percorso, { ...c, atlantis }, { 'if-match': letto.etag });
+      if (scritto.stato === 200) return { esito: 'scritto', motivo: t > 1 ? `dopo ${t - 1} conflitti` : '' };
+      if (scritto.stato !== 412) return { esito: 'errore', motivo: `scrittura: HTTP ${scritto.stato} ${JSON.stringify(scritto.dati).slice(0, 200)}` };
+      console.error(`Conflitto su ${cid} (tentativo ${t} di ${TENTATIVI_ETAG}): il contatto è cambiato dopo la lettura, rileggo e ricontrollo la firma`);
+    }
+    return { esito: 'conflitto', motivo: `${TENTATIVI_ETAG} conflitti consecutivi` };
+  } catch (e) {
+    return { esito: 'errore', motivo: String(e.message || e) };
+  }
+}
+
 const isoOggi = (k = 0) => {
   const d = new Date();
   d.setDate(d.getDate() + k);
@@ -44,7 +119,7 @@ const isoOggi = (k = 0) => {
 function elenco(giorni, soloNuovi = false) {
   const utenti = richiesta('GET', 'users') || {};
   const da = isoOggi(0), a = isoOggi(giorni);
-  const out = [];
+  const out = [], senzaFirma = [];
   for (const [uid, u] of Object.entries(utenti)) {
     const contatti = u.contatti || {};
     const perContatto = {};
@@ -64,8 +139,11 @@ function elenco(giorni, soloNuovi = false) {
     for (const [cid, apps] of Object.entries(perContatto)) {
       const c = contatti[cid];
       if (!c) continue;
+      // Senza firma (manca "creato") "scrivi" non potrebbe scrivere: il contatto non entra nell'elenco.
+      const firma = firmaContatto(c);
+      if (!firma) { senzaFirma.push(cid); continue; }
       out.push({
-        uid, cid, nome: c.nome || '', tipo: c.tipo || 'cliente', telefono: c.telefono || '', email: c.email || '',
+        uid, cid, firma, nome: c.nome || '', tipo: c.tipo || 'cliente', telefono: c.telefono || '', email: c.email || '',
         aziende: [...new Set(apps.map(x => x.azienda).filter(Boolean))],
         codiceAttuale: c.atlantis?.codice || '',
         // Solo per i rappresentanti: le aziende che rappresentano e i codici Atlantis già abbinati.
@@ -76,9 +154,11 @@ function elenco(giorni, soloNuovi = false) {
     }
   }
   console.log(JSON.stringify(out, null, 2));
+  // Su stderr, così l'output resta JSON valido.
+  if (senzaFirma.length) console.error(`Esclusi ${senzaFirma.length} contatti senza "creato" (identità incerta: aprirli e salvarli nell'app): ${senzaFirma.join(', ')}`);
 }
 
-const num = v => Math.round((Number(v) || 0) * 100) / 100;
+const num =v => Math.round((Number(v) || 0) * 100) / 100;
 
 // Tiene solo i campi attesi dall'app, così un dato sbagliato non rompe la schermata.
 const lato = x => (x ? { aperto: num(x.aperto), scaduto: num(x.scaduto), n: Math.max(0, Math.trunc(Number(x.n) || 0)) } : undefined);
@@ -132,13 +212,28 @@ function pulisci(at) {
 function scrivi(file) {
   const voci = JSON.parse(readFileSync(file, 'utf8'));
   if (!Array.isArray(voci)) esci('Il file deve contenere un elenco JSON');
-  let n = 0;
   for (const v of voci) {
     if (!/^[\w-]+$/.test(v.uid || '') || !/^[\w-]+$/.test(v.cid || '')) esci('uid o cid non validi: ' + JSON.stringify(v).slice(0, 120));
-    richiesta('PUT', `users/${v.uid}/contatti/${v.cid}/atlantis`, pulisci(v.atlantis || {}));
-    n++;
   }
-  console.log(`Scritti ${n} riepiloghi Atlantis`);
+  const esiti = { scritto: [], firmaMancante: [], assente: [], senzaCreato: [], diverso: [], conflitto: [], errore: [] };
+  for (const v of voci) {
+    // Voce senza firma (file preparato senza copiare "firma" da elenco): identità non verificabile, si salta.
+    const r = typeof v.firma === 'string' && v.firma.startsWith('v1:')
+      ? scriviAtlantisProtetto(v.uid, v.cid, v.firma, pulisci(v.atlantis || {}))
+      : { esito: 'firmaMancante', motivo: 'voce senza "firma" copiata da elenco' };
+    esiti[r.esito].push(`${v.cid}${r.motivo ? ` (${r.motivo})` : ''}`);
+  }
+  const etichette = {
+    scritto: 'Scritti', firmaMancante: 'Saltati: firma mancante nel file', assente: 'Saltati: contatto eliminato o senza nome',
+    senzaCreato: 'Saltati: identità incerta (manca "creato")', diverso: 'Saltati: firma diversa (altro soggetto o contatto modificato)',
+    conflitto: 'Non scritti: conflitti ripetuti', errore: 'ERRORI'
+  };
+  console.log(`Scritti ${esiti.scritto.length} riepiloghi Atlantis su ${voci.length}`);
+  for (const [k, lista] of Object.entries(esiti)) if (k !== 'scritto' && lista.length) console.log(`${etichette[k]} (${lista.length}): ${lista.join('; ')}`);
+  // Nessuna esecuzione incompleta risulta "riuscita": 1 con errori, 3 con contatti non aggiornati.
+  const nonScritti = voci.length - esiti.scritto.length;
+  if (esiti.errore.length) { console.error('Sincronizzazione con errori: vedi ERRORI'); process.exitCode = 1; }
+  else if (nonScritti) { console.error(`Sincronizzazione incompleta: ${nonScritti} contatti non aggiornati (nessun dato scritto su di loro)`); process.exitCode = 3; }
 }
 
 const [cmd, arg] = process.argv.slice(2);

@@ -262,6 +262,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 .riga.cliccabile{cursor:pointer}
 .riga.cliccabile:hover{background:var(--surface-2)}
 .riga.cliccabile:active{background:var(--accent-soft)}
+.riga[aria-disabled="true"]{opacity:.5;pointer-events:none}
 .riga>svg:last-child{color:var(--color-faint);flex:none}
 .ico{width:36px;height:36px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent-text);border:0}
 /* Avatar: iniziali su tinta tenue, colore stabile per contatto */
@@ -811,7 +812,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.20.0';
+const APP_VERSION = '2.21.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -824,7 +825,12 @@ const S = {
   vista: 'agenda', giorno: null, modoAgenda: 'lista', mese: null, calSel: null,
   q: '', qCerca: '', filtro: 'da-fare', tipoC: '',
   gmailToken: null, gmailExp: 0, gmailStato: 'caricamento',
-  unsub: []
+  unsub: [],
+  // v2.21.0: nodi già arrivati da Firebase (backup e ripristino aspettano contatti e appuntamenti)
+  // e blocco delle operazioni di backup/ripristino in corso.
+  caricati: {}, backupInCorso: false,
+  // Connessione a Firebase (.info/connected: null finché non si sa) e ripristino in attesa di conferma.
+  connesso: null, scritturaInAttesa: false
 };
 
 /*=== LOGICA ===*/
@@ -1349,6 +1355,7 @@ function attachListeners() {
     let primo = true;
     const handler = snap => {
       S[nome] = snap.val() || {};
+      if (primo) S.caricati[nome] = true;
       render();
       if (primo) { primo = false; if (++caricati === 3) datiPronti(); }
       else controllaPromemoria();
@@ -1361,6 +1368,7 @@ function attachListeners() {
 function detachListeners() {
   S.unsub.forEach(fn => fn());
   S.unsub = [];
+  S.caricati = {};
 }
 
 // Esegue una scrittura: messaggio di successo oppure messaggio d'errore; restituisce il risultato.
@@ -1628,6 +1636,574 @@ async function salvaIndirizziConferma(lista) {
   const puliti = lista.map(s => String(s).trim()).filter(Boolean);
   if (puliti.some(e => !isEmail(e))) { toast('Uno degli indirizzi non è valido'); return 'errore'; }
   return esegui(userRef('impostazioni/indirizziConferma').set(puliti), 'Indirizzi di conferma salvati');
+}
+
+// ===================== BACKUP E RIPRISTINO (v2.21.0) =====================
+// Il backup contiene solo users/<uid>/contatti e users/<uid>/appuntamenti, copiati così come sono: nessuna
+// correzione, nessun UID, nessuna preferenza locale (chiave Gemini, PIN, tema e simili restano fuori).
+// Export e import usano lo stesso controllo (controllaFileBackup): un backup è "ripristinabile" solo se
+// l'import lo accetterebbe senza perdere nulla. Il ripristino scrive sempre in users/<uid della sessione>.
+const BACKUP_APP = 'mirisa-appuntamenti';
+const BACKUP_FORMATO = 1;
+// Formati accettati. Un formato nuovo richiede un convertitore esplicito, documentato nel CHANGELOG.
+const FORMATI_SUPPORTATI = [1];
+const CHIAVI_BACKUP = ['app', 'formato', 'version', 'exportedAt', 'counts', 'contatti', 'appuntamenti'];
+// fileByte: file scelto; scritturaByte: dati di un singolo update() (Firebase ne accetta 16 MB dagli SDK);
+// profondita: livelli di Firebase contati da users/ (un record parte dal livello 4: users/<uid>/<nodo>/<id>).
+const BACKUP_LIMITI = { fileByte: 10 * 1024 * 1024, scritturaByte: 8 * 1024 * 1024, contatti: 5000, appuntamenti: 20000, profondita: 32 };
+const STATI_FIREBASE = ['programmato', 'confermato', 'completato', 'annullato'];
+const TIPI_STORICO = ['creato', 'spostato', 'rimandato', 'stato', 'pagamento', 'assegni', 'email', 'conferma'];
+
+const haChiave = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const tipoJson = v => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
+const byteDi = v => new TextEncoder().encode(typeof v === 'string' ? v : JSON.stringify(v)).length;
+// Regole delle chiavi di Firebase: niente . # $ [ ] / né caratteri di controllo, massimo 768 byte.
+const chiaveFirebaseValida = k => typeof k === 'string' && k.length > 0 && !/[.#$[\]/\x00-\x1f\x7f]/.test(k) && byteDi(k) <= 768;
+// Nomi riservati di JavaScript: come ID o chiave potrebbero alterare il prototipo degli oggetti dell'app
+// (i dati arrivano da Firebase come oggetti normali, non come mappe Object.create(null)). Si rifiutano sempre.
+const CHIAVI_RISERVATE_JS = ['__proto__', 'constructor', 'prototype'];
+const chiaveRiservata = k => CHIAVI_RISERVATE_JS.includes(k);
+const MSG_RISERVATA = 'nome riservato di JavaScript (__proto__, constructor, prototype): non ammesso';
+// Contatto orfano: senza il campo nome (es. ricreato da una scrittura esterna dopo essere stato eliminato).
+const contattoOrfano = c => !c || typeof c !== 'object' || !haChiave(c, 'nome');
+const contattiOrfani = () => Object.keys(S.contatti || {}).filter(id => contattoOrfano(S.contatti[id]));
+
+// Referto in quattro categorie. bloccanti: Firebase (regole o limiti) o l'app non possono accettarlo;
+// orfani: contatto senza nome o appuntamento senza il suo contatto; sconosciuti: campi fuori whitelist;
+// avvisi: dati scritti identici, ma fuori dai limiti dei moduli o dai formati dell'app.
+const nuovoReferto = () => ({ bloccanti: [], orfani: [], sconosciuti: [], avvisi: [] });
+const segnala = (lista, percorso, msg) => { lista.push({ percorso, msg }); };
+
+// --- Controlli dei singoli campi: un tipo sbagliato blocca, un valore fuori dai limiti dell'app avvisa ---
+const vTesto = maxUi => (v, p, r) => {
+  if (typeof v !== 'string') return segnala(r.bloccanti, p, 'deve essere un testo');
+  if (maxUi && v.length > maxUi) segnala(r.avvisi, p, `${v.length} caratteri, oltre il limite del modulo (${maxUi})`);
+};
+const vNum = (v, p, r) => { if (typeof v !== 'number') segnala(r.bloccanti, p, 'deve essere un numero'); };
+const vIntero = (min, max, nota) => (v, p, r) => {
+  if (typeof v !== 'number') return segnala(r.bloccanti, p, 'deve essere un numero');
+  if (!Number.isInteger(v) || v < min || v > max) segnala(r.avvisi, p, `valore ${v} fuori da quanto usa l’app (${nota})`);
+};
+const vMillis = vIntero(1, 8.64e15, 'data in millisecondi');
+const vImporto = (v, p, r) => {
+  if (typeof v !== 'number') return segnala(r.bloccanti, p, 'deve essere un numero');
+  if (v < 0 || v >= 1e8 || Math.abs(Math.round(v * 100) - v * 100) > 1e-6) segnala(r.avvisi, p, `importo ${v} fuori dal formato dell’app (da 0 a 99.999.999,99, due decimali)`);
+};
+const vBool = (v, p, r) => { if (typeof v !== 'boolean') segnala(r.bloccanti, p, 'deve essere vero o falso'); };
+// valori: elenco oppure funzione che lo restituisce (le costanti dell'app sono definite più avanti nel file).
+const vScelta = elenco => (v, p, r) => {
+  if (typeof v !== 'string') return segnala(r.bloccanti, p, 'deve essere un testo');
+  const valori = typeof elenco === 'function' ? elenco() : elenco;
+  if (!valori.includes(v)) segnala(r.avvisi, p, `valore «${v}» non previsto dall’app (ammessi: ${valori.map(x => x || '«vuoto»').join(', ')})`);
+};
+const vData = vuotaOk => (v, p, r) => {
+  if (typeof v !== 'string') return segnala(r.bloccanti, p, 'deve essere un testo (data)');
+  if (!(vuotaOk && v === '') && !validDate(v)) segnala(r.avvisi, p, `data «${v}» non nel formato AAAA-MM-GG`);
+};
+const vOra = (v, p, r) => {
+  if (typeof v !== 'string') return segnala(r.bloccanti, p, 'deve essere un testo (ora)');
+  if (!validTime(v)) segnala(r.avvisi, p, `ora «${v}» non nel formato HH:MM`);
+};
+const vIstante = (v, p, r) => {
+  if (typeof v !== 'string') return segnala(r.bloccanti, p, 'deve essere un testo (data e ora)');
+  if (Number.isNaN(Date.parse(v))) segnala(r.avvisi, p, `data e ora «${v}» non leggibili`);
+};
+const vOggetto = schema => (v, p, r) => {
+  if (tipoJson(v) !== 'object') return segnala(r.bloccanti, p, 'deve essere un oggetto');
+  controllaCampi(v, schema, p, r);
+};
+const vLista = (voce, maxUi) => (v, p, r) => {
+  if (!Array.isArray(v)) return segnala(r.bloccanti, p, 'deve essere un elenco');
+  if (maxUi && v.length > maxUi) segnala(r.avvisi, p, `${v.length} elementi, oltre i ${maxUi} usati dall’app`);
+  v.forEach((x, i) => voce(x, `${p}/${i}`, r));
+};
+// Campi non in whitelist: si segnalano (mai eliminati in silenzio). I null li segnala già controllaStruttura.
+function controllaCampi(obj, schema, p, r) {
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null) continue;
+    if (!haChiave(schema, k)) segnala(r.sconosciuti, `${p}/${k}`, 'campo non previsto dalla whitelist');
+    else schema[k](v, `${p}/${k}`, r);
+  }
+}
+// Vincoli di Firebase validi per ogni valore: niente null/NaN/Infinity/undefined, chiavi valide, 32 livelli.
+function controllaStruttura(v, p, r, livello) {
+  if (livello > BACKUP_LIMITI.profondita) return segnala(r.bloccanti, p, 'troppi livelli annidati (limite Firebase: 32)');
+  const t = tipoJson(v);
+  if (t === 'string' || t === 'boolean') return;
+  if (t === 'number') { if (!Number.isFinite(v)) segnala(r.bloccanti, p, 'numero non valido (NaN o Infinity)'); return; }
+  if (t !== 'object' && t !== 'array') return segnala(r.bloccanti, p, `valore che Firebase non può salvare (${t})`);
+  const chiavi = Object.keys(v);
+  if (!chiavi.length) segnala(r.avvisi, p, 'vuoto: Firebase non salva oggetti o elenchi vuoti, il campo risulterà assente');
+  for (const k of chiavi) {
+    if (!chiaveFirebaseValida(k)) segnala(r.bloccanti, `${p}/${k}`, 'chiave non ammessa da Firebase (. # $ [ ] / o troppo lunga)');
+    else if (chiaveRiservata(k)) segnala(r.bloccanti, `${p}/${k}`, MSG_RISERVATA);
+    controllaStruttura(v[k], `${p}/${k}`, r, livello + 1);
+  }
+}
+
+// --- Whitelist: campi scritti dall'app (index.html) e da scripts/atlantis-sync.mjs ---
+const vRuolo = vScelta(['cliente', 'fornitore']);
+const SCHEMA_LATO_AT = { aperto: vNum, scaduto: vNum, n: vIntero(0, 1e6, 'intero ≥ 0') };
+const SCHEMA_SOGGETTO_AT = {
+  codice: vTesto(), ragione: vTesto(160), nota: vTesto(160),
+  cliente: vOggetto(SCHEMA_LATO_AT), fornitore: vOggetto(SCHEMA_LATO_AT),
+  prossime: vLista(vOggetto({ data: vData(true), importo: vNum, ruolo: vRuolo, rif: vTesto(80), fattura: vTesto(30), dataFattura: vData(true), tipo: vTesto(40) }), 6),
+  crediti: vLista(vOggetto({ numero: vTesto(30), data: vData(true), importo: vNum, tipo: vTesto(40) }), 20),
+  fatture: vLista(vOggetto({
+    numero: vTesto(30), data: vData(true), ruolo: vRuolo, totale: vNum, aperto: vNum, tipo: vTesto(40), nota: vTesto(120),
+    rate: vLista(vOggetto({ data: vData(true), importo: vNum }), 12)
+  }), 20)
+};
+const SCHEMA_ATLANTIS = { ...SCHEMA_SOGGETTO_AT, aggiornato: vIstante, mandanti: vLista(vOggetto({ azienda: vTesto(120), ...SCHEMA_SOGGETTO_AT }), 20) };
+const SCHEMA_CONTATTO = {
+  nome: (v, p, r) => {
+    if (typeof v !== 'string' || v.length < 1 || v.length > 120) return segnala(r.bloccanti, p, 'il nome deve essere un testo da 1 a 120 caratteri (regola Firebase)');
+    if (!v.trim()) segnala(r.avvisi, p, 'nome fatto solo di spazi');
+  },
+  telefono: (v, p, r) => {
+    if (typeof v !== 'string') return segnala(r.bloccanti, p, 'deve essere un testo');
+    if (v && normTel(v) !== v) segnala(r.avvisi, p, `numero «${v}» non nel formato normalizzato dall’app`);
+  },
+  email: (v, p, r) => {
+    if (typeof v !== 'string') return segnala(r.bloccanti, p, 'deve essere un testo');
+    if (v && !isEmail(v)) segnala(r.avvisi, p, 'email non valida per l’app');
+  },
+  note: vTesto(1000),
+  sito: (v, p, r) => {
+    if (typeof v !== 'string') return segnala(r.bloccanti, p, 'deve essere un testo');
+    if (v && normalizzaSito(v) !== v) segnala(r.avvisi, p, 'indirizzo web non nel formato dell’app (solo http/https)');
+  },
+  tipo: vScelta(() => Object.keys(TIPI_CONTATTO)),
+  mandanti: vLista(vTesto(120), 20),
+  creato: vMillis, aggiornato: vMillis,
+  atlantis: vOggetto(SCHEMA_ATLANTIS)
+};
+const vModalita = vScelta(() => ['', ...Object.keys(MODALITA)]);
+const SCHEMA_ASSEGNO = { numero: vTesto(30), banca: vTesto(80), data: vData(false) };
+const SCHEMA_RATA = { data: vData(false), importo: vImporto, modalita: vModalita, pagata: vBool, assegno: vOggetto(SCHEMA_ASSEGNO), inAssegni: vBool };
+const vDaA = (v, p, r) => {
+  if (typeof v === 'string') return;
+  if (tipoJson(v) !== 'object') return segnala(r.bloccanti, p, 'deve essere un testo oppure { data, ora }');
+  controllaCampi(v, { data: vData(false), ora: vOra }, p, r);
+};
+const SCHEMA_VOCE_STORICO = {
+  tipo: vScelta(TIPI_STORICO), quando: vIstante, da: vDaA, a: vDaA,
+  motivo: vTesto(200), oggetto: vTesto(200), rata: vIntero(1, 1000, 'numero della rata'), n: vIntero(1, 1000, 'numero di assegni')
+};
+const vVoceStorico = vOggetto(SCHEMA_VOCE_STORICO);
+// Lo storico può tornare da Firebase come elenco o come oggetto con chiavi numeriche: l'app legge entrambi.
+const vStorico = (v, p, r) => {
+  if (Array.isArray(v)) return v.forEach((x, i) => vVoceStorico(x, `${p}/${i}`, r));
+  if (tipoJson(v) === 'object' && Object.keys(v).every(k => /^\d+$/.test(k))) return Object.entries(v).forEach(([k, x]) => vVoceStorico(x, `${p}/${k}`, r));
+  segnala(r.bloccanti, p, 'deve essere un elenco');
+};
+const SCHEMA_APPUNTAMENTO = {
+  contattoId: (v, p, r) => {
+    if (typeof v !== 'string' || !chiaveFirebaseValida(v)) segnala(r.bloccanti, p, 'deve essere l’ID di un contatto');
+    else if (chiaveRiservata(v)) segnala(r.bloccanti, p, MSG_RISERVATA);
+  },
+  data: vData(false), ora: vOra,
+  stato: (v, p, r) => { if (!STATI_FIREBASE.includes(v)) segnala(r.bloccanti, p, `stato non ammesso dalla regola Firebase (ammessi: ${STATI_FIREBASE.join(', ')})`); },
+  durata: vIntero(5, 480, 'da 5 a 480 minuti'),
+  importo: vImporto, acconto: vImporto,
+  movimento: vScelta(() => Object.keys(MOVIMENTI)), pagamento: vScelta(() => Object.keys(PAGAMENTI)), modalita: vModalita,
+  fattura: vTesto(30), dataFattura: vData(true),
+  azienda: vTesto(120), luogo: vTesto(200), motivo: vTesto(200), note: vTesto(1000),
+  promemoria: vIntero(0, 10080, 'da 0 a 10080 minuti'), rinvii: vIntero(0, 1e6, 'intero ≥ 0'),
+  creato: vMillis, aggiornato: vMillis, pagamentoAggiornato: vMillis,
+  assegno: vOggetto(SCHEMA_ASSEGNO),
+  rate: vLista(vOggetto(SCHEMA_RATA)),
+  confermaEmail: vOggetto({ messaggioId: vTesto(), da: vTesto(), quando: vTesto() }),
+  storico: vStorico
+};
+const OBBLIGATORI_APPUNTAMENTO = ['contattoId', 'data', 'ora', 'stato']; // regola .validate di firebase.rules.json
+
+// Controllo dei record (stesso codice per export e import). Non modifica nulla.
+function controllaDatiBackup(contatti, appuntamenti, r = nuovoReferto()) {
+  for (const [id, c] of Object.entries(contatti)) {
+    const p = 'contatti/' + id;
+    if (!chiaveFirebaseValida(id)) segnala(r.bloccanti, p, 'ID non ammesso da Firebase');
+    else if (chiaveRiservata(id)) segnala(r.bloccanti, p, 'ID: ' + MSG_RISERVATA);
+    if (tipoJson(c) !== 'object') { segnala(r.bloccanti, p, 'il contatto deve essere un oggetto'); continue; }
+    controllaStruttura(c, p, r, 4);
+    if (!haChiave(c, 'nome')) segnala(r.orfani, p, 'contatto senza nome (orfano): Firebase lo rifiuterebbe');
+    controllaCampi(c, SCHEMA_CONTATTO, p, r);
+  }
+  for (const [id, a] of Object.entries(appuntamenti)) {
+    const p = 'appuntamenti/' + id;
+    if (!chiaveFirebaseValida(id)) segnala(r.bloccanti, p, 'ID non ammesso da Firebase');
+    else if (chiaveRiservata(id)) segnala(r.bloccanti, p, 'ID: ' + MSG_RISERVATA);
+    if (tipoJson(a) !== 'object') { segnala(r.bloccanti, p, 'l’appuntamento deve essere un oggetto'); continue; }
+    controllaStruttura(a, p, r, 4);
+    for (const k of OBBLIGATORI_APPUNTAMENTO) if (!haChiave(a, k)) segnala(r.bloccanti, `${p}/${k}`, 'campo obbligatorio per la regola Firebase');
+    controllaCampi(a, SCHEMA_APPUNTAMENTO, p, r);
+    if (typeof a.contattoId === 'string' && a.contattoId && !haChiave(contatti, a.contattoId)) {
+      segnala(r.orfani, `${p}/contattoId`, `il contatto collegato (${a.contattoId}) non è nel backup`);
+    }
+  }
+  return r;
+}
+
+const versioneValida = v => typeof v === 'string' && /^\d+\.\d+\.\d+$/.test(v);
+function confrontaVersioni(x, y) {
+  const a = x.split('.').map(Number), b = y.split('.').map(Number);
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] > b[i] ? 1 : -1;
+  return 0;
+}
+
+// Controllo completo di un backup (intestazione + record): lo usano sia l'export sia l'import.
+function controllaFileBackup(b) {
+  const r = nuovoReferto();
+  const blocca = msg => segnala(r.bloccanti, 'file', msg);
+  if (tipoJson(b) !== 'object') { blocca('il file non contiene un backup (atteso un oggetto JSON)'); return chiudiReferto(r); }
+  for (const k of Object.keys(b)) if (!CHIAVI_BACKUP.includes(k)) segnala(r.sconosciuti, 'file/' + k, 'campo non previsto dal formato 1');
+  if (b.app !== BACKUP_APP) blocca('non è un backup di Mirisa Appuntamenti');
+  if (!haChiave(b, 'formato')) blocca('manca il numero di formato');
+  else if (!FORMATI_SUPPORTATI.includes(b.formato)) blocca(`formato ${JSON.stringify(b.formato)} non supportato (supportati: ${FORMATI_SUPPORTATI.join(', ')})`);
+  if (!versioneValida(b.version)) blocca('versione dell’app non valida');
+  else if (confrontaVersioni(b.version, APP_VERSION) > 0) blocca(`backup creato con la versione ${b.version}, più nuova di questa (${APP_VERSION}): aggiorna l’app prima di ripristinare`);
+  if (typeof b.exportedAt !== 'string' || Number.isNaN(Date.parse(b.exportedAt))) blocca('data di esportazione non valida');
+  const okC = tipoJson(b.contatti) === 'object', okA = tipoJson(b.appuntamenti) === 'object';
+  if (!okC) blocca('manca l’elenco dei contatti');
+  if (!okA) blocca('manca l’elenco degli appuntamenti');
+  if (!okC || !okA) return chiudiReferto(r);
+  const nC = Object.keys(b.contatti).length, nA = Object.keys(b.appuntamenti).length;
+  const cnt = b.counts;
+  if (tipoJson(cnt) !== 'object' || cnt.contatti !== nC || cnt.appuntamenti !== nA || Object.keys(cnt).some(k => !['contatti', 'appuntamenti'].includes(k))) {
+    blocca(`i conteggi del file non corrispondono ai record (${nC} contatti, ${nA} appuntamenti): file incompleto o modificato`);
+  }
+  if (nC > BACKUP_LIMITI.contatti) blocca(`${nC} contatti: oltre il limite di ${BACKUP_LIMITI.contatti}`);
+  if (nA > BACKUP_LIMITI.appuntamenti) blocca(`${nA} appuntamenti: oltre il limite di ${BACKUP_LIMITI.appuntamenti}`);
+  controllaDatiBackup(b.contatti, b.appuntamenti, r);
+  return chiudiReferto(r);
+}
+function chiudiReferto(r) {
+  r.ripristinabile = !r.bloccanti.length && !r.orfani.length && !r.sconosciuti.length;
+  return r;
+}
+
+// --- Sessione, blocco e download ---
+function sessioneBackupPronta() {
+  if (!auth?.currentUser || !S.user || auth.currentUser.uid !== S.user.uid) return 'Sessione non valida: esci e accedi di nuovo';
+  if (!S.caricati.contatti || !S.caricati.appuntamenti) return 'Dati non ancora caricati: riprova tra qualche secondo';
+  return '';
+}
+// data-backup="sessione": righe di "Altro" (servono anche sessione e dati pronti);
+// data-backup="limite": pulsante bloccato per dimensione, resta sempre disattivato.
+function aggiornaPulsantiBackup() {
+  const pronto = !sessioneBackupPronta();
+  document.querySelectorAll('[data-backup]').forEach(el => {
+    const off = S.backupInCorso || el.dataset.backup === 'limite' || (el.dataset.backup === 'sessione' && !pronto);
+    if ('disabled' in el) el.disabled = off;
+    el.setAttribute('aria-disabled', String(off));
+  });
+}
+// Una sola operazione di backup/ripristino alla volta: pulsanti disattivati fino alla fine.
+async function conBloccoBackup(fn) {
+  if (S.backupInCorso) { toast('Attendi: un’altra operazione di backup è in corso'); return; }
+  S.backupInCorso = true;
+  aggiornaPulsantiBackup();
+  try { return await fn(); } finally { S.backupInCorso = false; aggiornaPulsantiBackup(); }
+}
+// Copia fedele dei dati in memoria: arrivano da Firebase, quindi sono solo JSON e la copia non perde nulla.
+function creaBackup() {
+  const contatti = JSON.parse(JSON.stringify(S.contatti || {}));
+  const appuntamenti = JSON.parse(JSON.stringify(S.appuntamenti || {}));
+  return {
+    app: BACKUP_APP, formato: BACKUP_FORMATO, version: APP_VERSION, exportedAt: new Date().toISOString(),
+    counts: { contatti: Object.keys(contatti).length, appuntamenti: Object.keys(appuntamenti).length },
+    contatti, appuntamenti
+  };
+}
+function nomeFileBackup(tipo = '') {
+  const d = new Date();
+  return `mirisa-backup${tipo}-${isoOf(d)}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
+}
+// Avvia il download; un errore (Blob, URL o clic) viene rilanciato a chi chiama.
+function scaricaJson(nome, dati) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(dati, null, 2)], { type: 'application/json' }));
+  try {
+    const link = Object.assign(document.createElement('a'), { href: url, download: nome });
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+const AVVISO_DATI_PERSONALI = 'Il file contiene dati personali e contabili in chiaro: conservalo in un posto sicuro e non condividerlo.';
+const ICONA_AVVISO = () => icon('warn', 18);
+
+function htmlReferto(r) {
+  const gruppi = [['bloccanti', 'Errori bloccanti', 'tag-bad'], ['orfani', 'Record orfani', 'tag-warn'], ['sconosciuti', 'Campi sconosciuti', 'tag-warn'], ['avvisi', 'Avvisi non bloccanti', 'tag-prog']];
+  const conta = `<div style="display:flex;flex-wrap:wrap;gap:6px">${gruppi.map(([k, t, cl]) => `<span class="tag ${r[k].length ? cl : 'tag-neutral'}" data-cat="${k}">${t}: ${r[k].length}</span>`).join('')}</div>`;
+  const dettagli = gruppi.filter(([k]) => r[k].length).map(([k, t]) => `<details class="glass" style="padding:10px 12px"${k === 'avvisi' ? '' : ' open'}>
+      <summary style="cursor:pointer;font-weight:600">${t} (${r[k].length})</summary>
+      <ul style="margin:8px 0 0;padding-left:18px;font-size:13px;overflow-wrap:anywhere;display:flex;flex-direction:column;gap:4px">${r[k].slice(0, 50).map(x => `<li><code>${esc(x.percorso)}</code>: ${esc(x.msg)}</li>`).join('')}${r[k].length > 50 ? `<li>… e altri ${r[k].length - 50}</li>` : ''}</ul>
+    </details>`).join('');
+  return conta + dettagli;
+}
+const tagRipristinabile = r => (r.ripristinabile
+  ? '<span class="tag tag-accent" data-ripristinabile="si">Ripristinabile</span>'
+  : '<span class="tag tag-bad" data-ripristinabile="no">Non ripristinabile così com’è</span>');
+function mostraErroreBackup(titolo, msg) {
+  vibra('err');
+  openModal(`<h2>${esc(titolo)}</h2>
+    <div class="avviso" data-errore-backup>${ICONA_AVVISO()}<div>${esc(msg)}</div></div>
+    <div class="actions"><button type="button" class="btn btn-primary" data-act="chiudi">Chiudi</button></div>`);
+}
+
+// --- Export ---
+async function esportaBackupCompleto() {
+  const errore = sessioneBackupPronta();
+  if (errore) { toast(errore); return; }
+  await conBloccoBackup(async () => {
+    const backup = creaBackup();
+    const referto = controllaFileBackup(backup);
+    const nome = nomeFileBackup();
+    try { scaricaJson(nome, backup); } catch (e) { mostraErroreBackup('Download non riuscito', String(e?.message || e)); return; }
+    vibra('ok');
+    openModal(`<div><div class="card-kicker">Backup completo</div><h2>File scaricato</h2></div>
+      <p style="margin:0;overflow-wrap:anywhere"><b>${esc(nome)}</b><br><span class="muted">${plurale(backup.counts.contatti, 'contatto', 'contatti')} · ${plurale(backup.counts.appuntamenti, 'appuntamento', 'appuntamenti')}</span></p>
+      <div>${tagRipristinabile(referto)}</div>
+      ${referto.ripristinabile ? '' : `<div class="avviso">${ICONA_AVVISO()}<div>Il file contiene tutti i dati così come sono, ma l’importazione lo rifiuterebbe finché i problemi qui sotto restano nei dati.</div></div>`}
+      <div class="avviso">${ICONA_AVVISO()}<div>${esc(AVVISO_DATI_PERSONALI)}</div></div>
+      <div class="sezione"><h2>Controllo dei dati</h2>${htmlReferto(referto)}</div>
+      <div class="actions"><button type="button" class="btn btn-primary" data-act="chiudi">Chiudi</button></div>`);
+  });
+}
+
+// --- Import ---
+function scegliFileBackup() {
+  const errore = sessioneBackupPronta();
+  if (errore) { toast(errore); return; }
+  if (S.backupInCorso) { toast('Attendi: un’altra operazione di backup è in corso'); return; }
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json' });
+  input.addEventListener('change', () => { const f = input.files?.[0]; if (f) caricaFileBackup(f); });
+  input.click();
+}
+async function caricaFileBackup(file) {
+  await conBloccoBackup(async () => {
+    if (file.size > BACKUP_LIMITI.fileByte) {
+      mostraErroreBackup('File non accettato', `Il file pesa ${(file.size / 1048576).toFixed(1)} MB: il limite è ${BACKUP_LIMITI.fileByte / 1048576} MB.`);
+      return;
+    }
+    let dati;
+    try { dati = JSON.parse(await file.text()); } catch (e) { mostraErroreBackup('File non leggibile', 'Il file non è un JSON valido: ' + (e?.message || e)); return; }
+    apriAnteprimaRipristino(file.name, dati, controllaFileBackup(dati));
+  });
+}
+// Quanti record del file sono nuovi, quanti sostituiscono un record con lo stesso ID, quanti attuali mancano nel file.
+function confrontoRipristino(daFile, attuali) {
+  const ids = Object.keys(daFile);
+  return {
+    file: ids.length, attuali: Object.keys(attuali).length,
+    nuovi: ids.filter(id => !haChiave(attuali, id)).length,
+    stessoId: ids.filter(id => haChiave(attuali, id)).length,
+    assenti: Object.keys(attuali).filter(id => !haChiave(daFile, id)).length
+  };
+}
+function updatesUnione(b, uid) {
+  const u = {};
+  for (const [id, c] of Object.entries(b.contatti)) u[`users/${uid}/contatti/${id}`] = c;
+  for (const [id, a] of Object.entries(b.appuntamenti)) u[`users/${uid}/appuntamenti/${id}`] = a;
+  return u;
+}
+// Sostituzione completa: solo i due nodi; un nodo vuoto si cancella con null (mai {}).
+function updatesSostituzione(b, uid) {
+  return {
+    [`users/${uid}/contatti`]: Object.keys(b.contatti).length ? b.contatti : null,
+    [`users/${uid}/appuntamenti`]: Object.keys(b.appuntamenti).length ? b.appuntamenti : null
+  };
+}
+function apriAnteprimaRipristino(nomeFile, b, r) {
+  const intestazione = `<div><div class="card-kicker">Ripristino da backup</div><h2>Anteprima</h2></div>
+    <p style="margin:0;overflow-wrap:anywhere"><b>${esc(nomeFile)}</b>${tipoJson(b) === 'object' && versioneValida(b.version) ? `<br><span class="muted">Versione ${esc(b.version)}${typeof b.exportedAt === 'string' && !Number.isNaN(Date.parse(b.exportedAt)) ? ' · esportato il ' + esc(new Date(b.exportedAt).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' })) : ''}</span>` : ''}</p>`;
+  if (!r.ripristinabile) {
+    vibra('err');
+    openModal(`${intestazione}
+      <div>${tagRipristinabile(r)}</div>
+      <div class="avviso">${ICONA_AVVISO()}<div>Questo file non può essere ripristinato: nessun dato verrà scritto.</div></div>
+      <div class="sezione"><h2>Controllo del file</h2>${htmlReferto(r)}</div>
+      <div class="actions"><button type="button" class="btn btn-primary" data-act="chiudi">Chiudi</button></div>`);
+    return;
+  }
+  const c = confrontoRipristino(b.contatti, S.contatti || {}), a = confrontoRipristino(b.appuntamenti, S.appuntamenti || {});
+  const uid = S.user.uid;
+  const byteU = byteDi(updatesUnione(b, uid)), byteS = byteDi(updatesSostituzione(b, uid));
+  const limite = BACKUP_LIMITI.scritturaByte, mb = n => (n / 1048576).toFixed(2) + ' MB';
+  const riga = (t, x) => `<tr><th scope="row" style="text-align:left;font-weight:600;padding:4px 8px 4px 0">${t}</th><td style="padding:4px 0">${x}</td></tr>`;
+  openModal(`${intestazione}
+    <div>${tagRipristinabile(r)}</div>
+    <table style="width:100%;font-size:14px;border-collapse:collapse" data-anteprima>
+      ${riga('Nel file', `${plurale(c.file, 'contatto', 'contatti')} · ${plurale(a.file, 'appuntamento', 'appuntamenti')}`)}
+      ${riga('Nell’app ora', `${plurale(c.attuali, 'contatto', 'contatti')} · ${plurale(a.attuali, 'appuntamento', 'appuntamenti')}`)}
+    </table>
+    <div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:4px">
+      <div class="card-title" style="font-size:15px">Unisci / Aggiorna</div>
+      <div class="card-meta" data-unione>Nuovi: ${plurale(c.nuovi, 'contatto', 'contatti')} e ${plurale(a.nuovi, 'appuntamento', 'appuntamenti')}. Con lo stesso ID, sostituiti dalla versione del file: ${plurale(c.stessoId, 'contatto', 'contatti')} e ${plurale(a.stessoId, 'appuntamento', 'appuntamenti')}. Non elimina nulla.</div>
+    </div>
+    <div class="glass" style="padding:12px 14px;display:flex;flex-direction:column;gap:4px">
+      <div class="card-title" style="font-size:15px">Sostituzione completa</div>
+      <div class="card-meta" data-sostituzione>Contatti e appuntamenti diventano esattamente quelli del file. Attuali non presenti nel file, da eliminare: ${plurale(c.assenti, 'contatto', 'contatti')} e ${plurale(a.assenti, 'appuntamento', 'appuntamenti')}.</div>
+    </div>
+    ${byteU > limite || byteS > limite ? `<div class="avviso">${ICONA_AVVISO()}<div>Dati troppo grandi per una sola scrittura (${mb(Math.max(byteU, byteS))}, limite ${mb(limite)}): ripristino bloccato.</div></div>` : ''}
+    <details class="glass" style="padding:10px 12px"><summary style="cursor:pointer;font-weight:600">Controllo del file</summary><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">${htmlReferto(r)}</div></details>
+    <div class="actions" style="flex-wrap:wrap">
+      <button type="button" class="btn btn-secondary" data-act="chiudi">Annulla</button>
+      <button type="button" class="btn btn-secondary btn-danger" data-scelta="sostituisci" ${byteS > limite ? 'data-backup="limite" disabled' : 'data-backup'}>Sostituzione completa…</button>
+      <button type="button" class="btn btn-primary" data-scelta="unisci" ${byteU > limite ? 'data-backup="limite" disabled' : 'data-backup'}>Unisci / Aggiorna</button>
+    </div>`, m => {
+    m.querySelector('[data-scelta="unisci"]').addEventListener('click', () => eseguiUnione(b, c, a));
+    m.querySelector('[data-scelta="sostituisci"]').addEventListener('click', () => apriSostituzione(b, c, a));
+  });
+}
+// Percorsi ammessi in un ripristino: solo i due nodi (o i loro record) dell'utente della sessione.
+function percorsoRipristinoAmmesso(k, uid) {
+  for (const nodo of ['contatti', 'appuntamenti']) {
+    const base = `users/${uid}/${nodo}`;
+    if (k === base) return true;
+    if (k.startsWith(base + '/')) { const id = k.slice(base.length + 1); return chiaveFirebaseValida(id) && !chiaveRiservata(id); }
+  }
+  return false;
+}
+// Ultimo controllo, indipendente dall'interfaccia: sessione, file ripristinabile, percorsi, dimensione.
+// Restituisce '' se si può scrivere, altrimenti il motivo.
+function controlloPrimaDiScrivere(b, updates) {
+  const errore = sessioneBackupPronta();
+  if (errore) return errore;
+  const r = controllaFileBackup(b);
+  if (!r.ripristinabile) return `il file non supera il controllo (${r.bloccanti.length} errori bloccanti, ${r.orfani.length} orfani, ${r.sconosciuti.length} campi sconosciuti)`;
+  const uid = auth.currentUser.uid;
+  const fuori = Object.keys(updates).filter(k => !percorsoRipristinoAmmesso(k, uid));
+  if (fuori.length) return `percorsi non ammessi: ${fuori.slice(0, 3).join(', ')}`;
+  const byte = byteDi(updates);
+  if (byte > BACKUP_LIMITI.scritturaByte) return `dati troppo grandi per una sola scrittura (${(byte / 1048576).toFixed(2)} MB, limite ${BACKUP_LIMITI.scritturaByte / 1048576} MB)`;
+  return '';
+}
+
+// --- Stato della connessione (.info/connected) e scrittura in attesa ---
+// Senza rete Firebase tiene la scrittura in coda e la invia al ritorno della connessione: nessun timeout,
+// nessun esito finché il server non conferma. Le operazioni di backup restano bloccate fino ad allora.
+function testoAttesaScrittura() {
+  return S.connesso === false
+    ? '<strong>Nessuna connessione.</strong> La scrittura è in coda e partirà appena torna la rete. Non chiudere e non ricaricare l’app finché non compare la conferma. Su questo dispositivo i dati possono già apparire aggiornati, ma non sono ancora salvati sul server.'
+    : '<strong>Invio a Firebase in corso.</strong> In attesa della conferma del server: non chiudere l’app.';
+}
+function aggiornaAttesaScrittura() {
+  const el = document.getElementById('attesaScritturaTesto');
+  if (el) el.innerHTML = testoAttesaScrittura();
+}
+function apriAttesaScrittura() {
+  // Pagina senza pulsanti di chiusura: si chiude da sola quando la scrittura ha un esito.
+  return openPage(`<div class="page-body" data-attesa-scrittura>
+      <div><div class="card-kicker">Ripristino da backup</div><h1 style="font-size:30px">Scrittura in attesa</h1></div>
+      <div class="avviso">${ICONA_AVVISO()}<div id="attesaScritturaTesto">${testoAttesaScrittura()}</div></div>
+    </div>`).closest('.layer');
+}
+function chiudiLivello(el) {
+  if (!el) return;
+  const i = livelli.findIndex(l => l.el === el);
+  if (i === livelli.length - 1) { closeModal(); return; }
+  if (i >= 0) livelli.splice(i, 1);
+  el.remove();
+}
+window.addEventListener('beforeunload', e => { if (S.scritturaInAttesa) { e.preventDefault(); e.returnValue = ''; } });
+
+// Scrittura unica e atomica: o va a buon fine tutta, o Firebase non cambia nulla.
+// Il messaggio di esito compare solo dopo la conferma del server (o il suo rifiuto).
+async function scriviRipristino(b, updates, msgOk) {
+  const motivo = controlloPrimaDiScrivere(b, updates);
+  if (motivo) {
+    mostraErroreBackup('Ripristino bloccato', `Scrittura non inviata: ${motivo}. Nessun dato è stato modificato.`);
+    return false;
+  }
+  let livelloAttesa = null;
+  const timer = setTimeout(() => { livelloAttesa = apriAttesaScrittura(); }, S.connesso === false ? 0 : 1500);
+  S.scritturaInAttesa = true;
+  try {
+    await db.ref().update(updates);
+  } catch (err) {
+    mostraErroreBackup('Ripristino non riuscito', `Firebase ha rifiutato la scrittura (${err?.code || 'errore'}): ${err?.message || err}. Nessun dato è stato modificato.`);
+    return false;
+  } finally {
+    clearTimeout(timer);
+    S.scritturaInAttesa = false;
+    chiudiLivello(livelloAttesa);
+  }
+  while (livelli.length) closeModal();
+  toast(msgOk);
+  vibra('ok');
+  return true;
+}
+async function eseguiUnione(b, c, a) {
+  // Controllo autonomo, anche se l'anteprima l'ha già fatto: senza file valido non si scrive.
+  const r = controllaFileBackup(b);
+  if (!r.ripristinabile) { mostraErroreBackup('Ripristino bloccato', 'Il file non supera il controllo: nessun dato verrà scritto.'); return; }
+  if (!c.file && !a.file) { toast('Il backup è vuoto: niente da unire'); return; }
+  if (!window.confirm(`Unire il backup ai dati attuali?\n\nVerranno scritti ${c.file} contatti e ${a.file} appuntamenti del file: ${c.stessoId + a.stessoId} record con lo stesso ID saranno sostituiti dalla versione del file. Nessun dato verrà eliminato.`)) return;
+  await conBloccoBackup(async () => {
+    const errore = sessioneBackupPronta();
+    if (errore) { toast(errore); return; }
+    await scriviRipristino(b, updatesUnione(b, auth.currentUser.uid), `Unione completata: ${plurale(c.file, 'contatto', 'contatti')} e ${plurale(a.file, 'appuntamento', 'appuntamenti')} scritti`);
+  });
+}
+// Sostituzione completa: backup preventivo scaricato, presa visione, "RIPRISTINA", poi una sola scrittura.
+function apriSostituzione(b, c, a) {
+  const st = { preventivo: '', istantanea: '' };
+  const istantanea = () => JSON.stringify([S.contatti || {}, S.appuntamenti || {}]);
+  openModal(`<div><div class="card-kicker">Ripristino da backup</div><h2>Sostituzione completa</h2></div>
+    <div class="avviso">${ICONA_AVVISO()}<div>Contatti e appuntamenti attuali (${c.attuali} e ${a.attuali}) verranno sostituiti da quelli del file (${c.file} e ${a.file}). Impostazioni, notifiche e preferenze di questo dispositivo non cambiano.</div></div>
+    <p class="muted" style="margin:0">Meglio evitare le 6:40 e i controlli orari dalle 8 alle 20: l’aggiornamento Atlantis scrive nei contatti in quei momenti.</p>
+    <div class="sezione">
+      <h2>1 · Backup preventivo</h2>
+      <button type="button" class="btn btn-secondary" id="btnPreventivo" data-backup style="align-self:flex-start">${icon('download', 16)} Scarica il backup dei dati attuali</button>
+      <div id="statoPreventivo" class="muted" style="font-size:13.5px;overflow-wrap:anywhere">Obbligatorio prima di continuare.</div>
+      <div class="avviso">${ICONA_AVVISO()}<div>${esc(AVVISO_DATI_PERSONALI)}</div></div>
+    </div>
+    <div class="sezione">
+      <h2>2 · Conferma</h2>
+      <label style="display:flex;gap:10px;align-items:flex-start;font-size:14.5px"><input type="checkbox" id="chkPreventivo" disabled style="width:20px;height:20px;flex:none;margin-top:1px"> Ho scaricato e conservato il backup preventivo</label>
+      <label class="field"><span>Scrivi RIPRISTINA per confermare</span><input class="input" id="txtRipristina" autocomplete="off" autocapitalize="characters" spellcheck="false" disabled></label>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn btn-secondary" data-act="chiudi">Annulla</button>
+      <button type="button" class="btn btn-primary" id="btnSostituisci" disabled>Sostituisci tutti i dati</button>
+    </div>`, m => {
+    const btnPrev = m.querySelector('#btnPreventivo'), statoPrev = m.querySelector('#statoPreventivo');
+    const chk = m.querySelector('#chkPreventivo'), txt = m.querySelector('#txtRipristina'), btnOk = m.querySelector('#btnSostituisci');
+    const aggiorna = () => {
+      chk.disabled = !st.preventivo;
+      if (!st.preventivo) chk.checked = false;
+      txt.disabled = !chk.checked;
+      if (txt.disabled) txt.value = '';
+      btnOk.disabled = S.backupInCorso || !(st.preventivo && chk.checked && txt.value === 'RIPRISTINA');
+    };
+    const azzera = msg => { st.preventivo = ''; st.istantanea = ''; statoPrev.innerHTML = msg; aggiorna(); };
+    chk.addEventListener('change', aggiorna);
+    txt.addEventListener('input', aggiorna);
+    btnPrev.addEventListener('click', () => conBloccoBackup(async () => {
+      const errore = sessioneBackupPronta();
+      if (errore) { azzera(esc(errore)); return; }
+      const backup = creaBackup(), nome = nomeFileBackup('-preventivo');
+      try { scaricaJson(nome, backup); } catch (e) {
+        azzera(`<span style="color:var(--st-late)">Download non riuscito (${esc(e?.message || e)}): sostituzione bloccata.</span>`);
+        vibra('err');
+        return;
+      }
+      st.preventivo = nome;
+      st.istantanea = istantanea();
+      const rp = controllaFileBackup(backup);
+      statoPrev.innerHTML = `Scaricato: <b>${esc(nome)}</b> · ${plurale(backup.counts.contatti, 'contatto', 'contatti')}, ${plurale(backup.counts.appuntamenti, 'appuntamento', 'appuntamenti')}${rp.ripristinabile ? '' : ' · <span style="color:var(--st-warn)">attenzione: questo backup non sarebbe ripristinabile così com’è (dettagli con “Scarica backup completo”)</span>'}`;
+    }).finally(aggiorna));
+    btnOk.addEventListener('click', () => conBloccoBackup(async () => {
+      if (!(st.preventivo && chk.checked && txt.value === 'RIPRISTINA')) return;
+      const errore = sessioneBackupPronta();
+      if (errore) { toast(errore); return; }
+      // Dati cambiati dopo il backup preventivo (altro dispositivo, Atlantis…): serve un backup nuovo.
+      if (istantanea() !== st.istantanea) { azzera('<span style="color:var(--st-warn)">I dati sono cambiati dopo il backup preventivo: scaricane uno nuovo.</span>'); return; }
+      await scriviRipristino(b, updatesSostituzione(b, auth.currentUser.uid), `Sostituzione completata: ${plurale(c.file, 'contatto', 'contatti')} e ${plurale(a.file, 'appuntamento', 'appuntamenti')}`);
+    }).finally(() => { if (btnOk.isConnected) aggiorna(); }));
+    aggiorna();
+  });
 }
 
 // ===================== PREFERENZE LOCALI E ASSISTENTE IA =====================
@@ -2327,8 +2903,9 @@ const pilloleTotali = t => (t.entrata || t.uscita)
   : '';
 const byDt = (x, y) => (x.data + x.ora).localeCompare(y.data + y.ora);
 
+// v2.21.0: i contatti orfani (senza nome, vedi contattoOrfano) restano nei dati e nel backup ma non negli elenchi.
 function contattiOrdinati() {
-  return Object.entries(S.contatti).map(([id, c]) => ({ id, ...c }))
+  return Object.entries(S.contatti).filter(([, c]) => !contattoOrfano(c)).map(([id, c]) => ({ id, ...c }))
     .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'it'));
 }
 
@@ -2759,6 +3336,8 @@ function renderImpostazioni() {
   const segTema = (v, t) => `<button type="button" data-act="tema" data-t="${v}" aria-pressed="${tema === v}">${t}</button>`;
   const permesso = notificheSupportate() ? Notification.permission : 'non disponibile';
   const nProm = prossimiPromemoria(1).length;
+  const nOrfani = contattiOrfani().length;
+  const backupPronto = !sessioneBackupPronta();
   $('#main').innerHTML = `<div class="view">
     <div class="head"><div><div class="card-kicker">${esc(S.user?.email || '')}</div><h1>Impostazioni</h1></div></div>
 
@@ -2777,6 +3356,24 @@ function renderImpostazioni() {
             <div class="card-meta">File .ics da importare in Google Calendar o in un altro calendario</div></div>
         </div>
       </div>
+    </div>
+
+    <div class="sezione" id="sezioneDati">
+      <h2>Dati</h2>
+      ${nOrfani ? `<div class="avviso" data-orfani="${nOrfani}">${icon('warn', 18)}<div><strong>${plurale(nOrfani, 'contatto senza nome', 'contatti senza nome')}</strong> (${nOrfani === 1 ? 'orfano' : 'orfani'}): ${nOrfani === 1 ? 'è nascosto' : 'sono nascosti'} dagli elenchi. Di solito nascono da un aggiornamento esterno su un contatto appena eliminato. Finché ci sono, il backup risulta non ripristinabile.</div></div>` : ''}
+      <div class="lista-righe">
+        <div class="riga cliccabile" data-act="backup" data-backup="sessione" role="button" tabindex="0" aria-disabled="${S.backupInCorso || !backupPronto}">
+          <span class="ico">${icon('download', 20)}</span>
+          <div class="testo"><div class="card-title">Scarica backup completo</div>
+            <div class="card-meta">${S.scritturaInAttesa ? 'Ripristino in attesa di conferma da Firebase…' : backupPronto ? `${plurale(Object.keys(S.contatti).length, 'contatto', 'contatti')} e ${plurale(Object.keys(S.appuntamenti).length, 'appuntamento', 'appuntamenti')} in un file JSON` : 'Caricamento dei dati in corso…'}</div></div>
+        </div>
+        <div class="riga cliccabile" data-act="ripristina" data-backup="sessione" role="button" tabindex="0" aria-disabled="${S.backupInCorso || !backupPronto}">
+          <span class="ico">${icon('undo', 20)}</span>
+          <div class="testo"><div class="card-title">Ripristina da backup</div>
+            <div class="card-meta">Unisci / aggiorna oppure sostituzione completa, con anteprima prima di scrivere</div></div>
+        </div>
+      </div>
+      <p class="muted" style="margin:0">Il backup contiene dati personali e contabili in chiaro: conservalo in un posto sicuro. Non include la chiave Gemini, il PIN né le preferenze di questo dispositivo.</p>
     </div>
 
     <div class="sezione">
@@ -4589,7 +5186,10 @@ const ACTIONS = {
   attivaPush: async () => { toast(await iscriviPush() ? 'Notifiche push collegate' : 'Collegamento non riuscito, riprova'); aggiornaLivello(); render(); },
   provaPush: () => provaPush(),
   provaNotifica: () => mostraNotifica({ id: 'prova', ora: oraAdesso(), data: todayISO(), motivo: 'Notifica di prova', contatto: {} }),
-  ics: () => esportaIcs()
+  ics: () => esportaIcs(),
+  // v2.21.0: backup e ripristino
+  backup: () => esportaBackupCompleto(),
+  ripristina: () => scegliFileBackup()
 };
 
 // Vibrazione leggera sui pulsanti principali (fase di cattura: arriva prima di ogni altra azione).
@@ -4904,6 +5504,8 @@ if (configMancante) {
   firebase.initializeApp(FIREBASE_CONFIG);
   auth = firebase.auth();
   db = firebase.database();
+  // v2.21.0: stato della connessione, per mostrare quando un ripristino è in coda senza rete.
+  db.ref('.info/connected').on('value', snap => { S.connesso = snap.val() === true; aggiornaAttesaScrittura(); });
 
   auth.onAuthStateChanged(u => {
     S.user = u;

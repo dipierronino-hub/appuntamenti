@@ -7,6 +7,8 @@ Serve `FIREBASE_DB_SECRET` nell'ambiente e l'accesso di rete a
 1. `node scripts/atlantis-sync.mjs elenco 7` → contatti con appuntamenti nei prossimi 7 giorni e **tutti i
    rappresentanti** (anche senza appuntamenti, con `appuntamenti: []`): nell'app si tocca un'azienda
    rappresentata e si vede la sua situazione, quindi va aggiornata ogni mattina.
+   Ogni voce contiene `firma`: copiala **identica** nel file del passo 4 (vedi "Firma del contatto" sotto).
+   I contatti senza `creato` non compaiono nell'elenco (avviso su stderr): vedi sotto.
 2. Per ogni contatto trova il soggetto in Atlantis con `cerca_soggetti`:
    - se `codiceAttuale` è presente, riusa quel codice;
    - altrimenti cerca per ognuna delle `aziende`, poi per telefono, email e nome;
@@ -25,10 +27,11 @@ Serve `FIREBASE_DB_SECRET` nell'ambiente e l'accesso di rete a
    - `scaduto`: parte con data di scadenza prima di oggi;
    - `n`: numero di scadenze aperte.
 4. Prepara un file JSON (fuori dal repository) come questo e lancia
-   `node scripts/atlantis-sync.mjs scrivi <file>`:
+   `node scripts/atlantis-sync.mjs scrivi <file>`. `uid`, `cid` e `firma` si copiano dalla voce di `elenco`
+   (o `nuovi`) senza modificarli:
 
 ```json
-[{ "uid": "...", "cid": "...", "atlantis": {
+[{ "uid": "...", "cid": "...", "firma": "v1:…copiata da elenco…", "atlantis": {
   "codice": "0002563", "ragione": "RAGIONE SOCIALE", "nota": "",
   "cliente": { "aperto": 0, "scaduto": 0, "n": 0 },
   "fornitore": { "aperto": 1200.5, "scaduto": 300, "n": 3 },
@@ -40,7 +43,7 @@ Serve `FIREBASE_DB_SECRET` nell'ambiente e l'accesso di rete a
 Per un rappresentante:
 
 ```json
-[{ "uid": "...", "cid": "...", "atlantis": { "mandanti": [
+[{ "uid": "...", "cid": "...", "firma": "v1:…copiata da elenco…", "atlantis": { "mandanti": [
   { "azienda": "Nome scritto nell'app (copialo da mandanti, l'app abbina per nome)", "codice": "0001234", "ragione": "RAGIONE SOCIALE", "nota": "",
     "fornitore": { "aperto": 5000, "scaduto": 0, "n": 2 }, "prossime": [] },
   { "azienda": "Altra azienda", "nota": "Non trovato in Atlantis" }
@@ -90,3 +93,39 @@ prima le scadute e poi le più vicine. Non inserire dati di Atlantis nel reposit
 Scrivi sempre tutte le scadenze aperte, anche quelle di fatture già gestite negli appuntamenti: è l'app a
 nasconderle quando un appuntamento dello stesso contatto ha quella fattura (campo `fattura` o "FT 3138" nel
 titolo) e il pagamento aggiornato (rate, assegni, acconto o saldo). Non modificare gli appuntamenti.
+
+## Firma del contatto e scrittura protetta (dalla 2.21.0)
+
+Tra `elenco` e `scrivi` passano diversi minuti: nel frattempo un contatto può essere modificato, eliminato
+o sostituito (per esempio da un ripristino completo da backup) con un soggetto diverso che ha lo stesso ID.
+Per non scrivere mai i dati Atlantis di un soggetto su un altro:
+
+- **Firma**: `elenco` calcola per ogni contatto `firma = "v1:" + SHA-256` dei valori salvati di
+  `creato`, `nome`, `tipo`, `telefono`, `email`, `mandanti` (un campo assente vale `null`). Stessi valori,
+  stessa firma. `scrivi` legge il contatto, ricalcola la firma e scrive solo se coincide con quella del file.
+- **ETag**: la scrittura riscrive l'intero `contatti/<cid>` (tutti i campi restano com'erano, cambia solo
+  `atlantis`) con `if-match` sull'ETag letto: se il contatto cambia tra lettura e scrittura, Firebase
+  risponde 412 e `scrivi` rilegge, **ricontrolla la firma** e riprova, al massimo 3 volte.
+- **`creato` mancante**: l'identità è incerta, quindi nessuna scrittura (in `elenco` il contatto è escluso,
+  in `scrivi` è saltato). Si risolve aprendo e salvando il contatto nell'app, che aggiunge `creato`.
+- **Una modifica legittima** di nome, tipo, telefono, email o aziende rappresentate dopo `elenco` cambia la
+  firma: il contatto viene saltato (la ricerca in Atlantis era basata sui dati vecchi) e ricompare al giro
+  successivo, perché la sua data `atlantis.aggiornato` non cambia. Le modifiche ad altri campi (note, sito…)
+  non cambiano la firma e non impediscono la scrittura.
+
+Esiti stampati da `scrivi`, per ogni contatto non scritto con il motivo:
+`firma mancante nel file`, `contatto eliminato o senza nome`, `identità incerta (manca "creato")`,
+`firma diversa`, `conflitti ripetuti`, `ERRORI` (rete o HTTP: il contatto non è stato scritto, gli altri
+vengono comunque elaborati).
+
+Codici di uscita di `scrivi`:
+
+| Codice | Significato | Cosa fare |
+|---|---|---|
+| 0 | Tutti i riepiloghi scritti | Niente. |
+| 3 | Nessun errore, ma sincronizzazione incompleta: almeno un contatto saltato o in conflitto, senza scritture su di lui | Riportare l'elenco dei saltati nel resoconto della routine; non rilanciare subito: i contatti vengono ripresi al giro successivo. |
+| 1 | Errori (file non valido, rete, Firebase) | Riportare l'errore; i contatti con errore non sono stati scritti. |
+
+Un codice diverso da 0 fa risultare la routine come non completata: è voluto, perché un aggiornamento
+parziale non deve passare per riuscito. Se il file manca della `firma` (procedura vecchia), tutti i
+contatti vengono saltati con codice 3.
