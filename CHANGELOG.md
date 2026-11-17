@@ -15,8 +15,27 @@ La versione si trova in due punti, da cambiare sempre insieme:
 | 2.19.5 | Pubblicata il 16/11/2026, sostituita in giornata dalla 2.19.6 | Restyling grafico mobile-first, solo CSS (vedi sotto). Parte dalla 2.19.4. |
 | 2.19.6 | Pubblicata il 16/11/2026, sostituita dalla 2.19.7 | Sito web del contatto, pulsante Web e ricerca del sito con AI (vedi sotto). Parte dalla 2.19.5. |
 | 2.19.7 | Pubblicata il 17/11/2026, sostituita dalla 2.20.0 | Ricerca sito AI: aziende rappresentate e recupero dagli errori 429 (vedi sotto). Parte dalla 2.19.6. |
-| 2.20.0 | Pubblicata il 17/11/2026 | Restyling strutturale Agenda & Card (vedi sotto). Parte dalla 2.19.7. |
-| 2.21.0 | Proposta | Backup completo e ripristino (richiesta #32, oggi numerata 2.19.0): va rinumerata 2.21.0 e unita dopo la 2.20.0. |
+| 2.20.0 | Pubblicata il 17/11/2026, sostituita dalla 2.21.0 | Restyling strutturale Agenda & Card (vedi sotto). Parte dalla 2.19.7. |
+| 2.21.0 | Pubblicata il 17/11/2026 | Backup completo e ripristino (richiesta #32, vedi sotto). Parte dalla 2.20.0. |
+
+## 2.21.0
+
+**Backup completo e ripristino (Altro › Dati)**
+
+- "Scarica backup completo": file `mirisa-backup-AAAA-MM-GG-HHMM.json` con `app`, `formato: 1`, `version`, `exportedAt`, `counts`, `contatti`, `appuntamenti`. I dati sono copiati così come sono in `users/{uid}/contatti` e `users/{uid}/appuntamenti` (compreso `atlantis`), senza correzioni. Non contiene l'UID né le preferenze locali (chiave Gemini, PIN, tema, impronta, notifiche).
+- Stesso controllo per export e import, con quattro categorie: errori bloccanti (regole di `firebase.rules.json`, limiti di Firebase, tipi sbagliati), record orfani (contatto senza `nome`, appuntamento con `contattoId` assente dal file), campi sconosciuti (fuori whitelist, segnalati e mai eliminati), avvisi non bloccanti (lunghezze oltre i `maxlength` dei moduli, formati dell'app). Un backup è "ripristinabile" solo senza bloccanti, orfani e campi sconosciuti.
+- Whitelist dai campi scritti dall'app e da `scripts/atlantis-sync.mjs`. Contatto: `nome`, `telefono`, `email`, `note`, `sito`, `tipo`, `mandanti`, `creato`, `aggiornato`, `atlantis`. Appuntamento: `contattoId`, `data`, `ora`, `stato`, `durata`, `importo`, `acconto`, `movimento`, `pagamento`, `modalita`, `fattura`, `dataFattura`, `azienda`, `luogo`, `motivo`, `note`, `promemoria`, `rinvii`, `creato`, `aggiornato`, `pagamentoAggiornato`, `assegno`, `rate`, `confermaEmail`, `storico`.
+- "Ripristina da backup": file `.json` fino a 10 MB, controllo completo e anteprima dei numeri prima di qualsiasi scrittura. Formati accettati: `1`; rifiutati i backup di una versione più nuova dell'app. Nessuna migrazione automatica.
+- **Unisci / Aggiorna**: un solo `update()` multi-percorso per tutti i record del file; aggiunge i nuovi e sostituisce con la versione del file quelli con lo stesso ID; non elimina nulla.
+- **Sostituzione completa**: backup preventivo scaricato su richiesta e obbligatorio (un errore di download blocca il flusso), casella di presa visione, digitazione di `RIPRISTINA`, poi un solo `update()` atomico su `users/{uid}/contatti` e `users/{uid}/appuntamenti` (`null` per un nodo vuoto, mai `{}`). Se i dati cambiano dopo il backup preventivo, ne serve uno nuovo. Gli altri nodi (`impostazioni`, `push`…) non vengono toccati.
+- Sicurezza: export e ripristino solo con sessione valida (`auth.currentUser.uid === S.user.uid`) e con contatti e appuntamenti già caricati (`S.caricati`); un'operazione alla volta, pulsanti disattivati durante l'esecuzione; limite di 8 MB per scrittura, 5.000 contatti e 20.000 appuntamenti, controllati prima di chiamare Firebase. Un errore di Firebase viene mostrato per intero, senza messaggi di successo parziali.
+- Contatti orfani (senza `nome`): nascosti dagli elenchi, segnalati in Altro › Dati e nel referto del backup; restano nei dati.
+- `scripts/atlantis-sync.mjs scrivi`: il riepilogo si scrive riscrivendo l'intero `contatti/{cid}` con una richiesta condizionata (`X-Firebase-ETag` + `if-match`). Se il contatto è stato eliminato o modificato dopo la lettura, Firebase risponde 412: lo script rilegge (al massimo 3 tentativi), salta i contatti eliminati o senza nome e segnala i conflitti persistenti, senza scrivere. Non ricrea più contatti cancellati e non sovrascrive modifiche dell'app.
+- Firma del contatto (`scripts/atlantis-sync.mjs`, documentata in `scripts/ATLANTIS.md`): `elenco` aggiunge a ogni voce `firma = "v1:" + SHA-256` di `creato`, `nome`, `tipo`, `telefono`, `email`, `mandanti`; `scrivi` la ricalcola a ogni lettura, anche dopo un 412, e scrive solo se coincide, insieme al controllo ETag su `contatti/{cid}`. Un contatto eliminato e ricreato con lo stesso ID, o modificato nei campi della firma, non riceve i dati Atlantis del soggetto precedente. Contatti senza `creato` (identità incerta) e voci senza `firma` non vengono scritti.
+- Codici di uscita di `scrivi`: `0` tutti i riepiloghi scritti, `3` sincronizzazione incompleta (contatti saltati o in conflitto, nessun errore), `1` errori (file non valido, rete, Firebase). Gli errori di un contatto non fermano gli altri.
+- ID riservati: le chiavi `__proto__`, `constructor` e `prototype` (come ID, `contattoId` o chiavi annidate) sono errori bloccanti, con il percorso indicato.
+- Controllo finale prima di scrivere: `eseguiUnione` e `scriviRipristino` ricontrollano da soli sessione, validità del file, dimensione e percorsi (solo `users/{uid}/contatti` e `users/{uid}/appuntamenti`).
+- Offline: con lo stato di `.info/connected`, una schermata persistente "Scrittura in attesa" resta visibile finché Firebase non conferma; nessun timeout né esito anticipato, operazioni di backup bloccate nel frattempo, avviso del browser se si chiude la pagina con una scrittura in coda.
 
 ## 2.20.0
 
