@@ -17,6 +17,18 @@ La versione si trova in due punti, da cambiare sempre insieme:
 | 2.19.7 | Pubblicata il 17/11/2026, sostituita dalla 2.20.0 | Ricerca sito AI: aziende rappresentate e recupero dagli errori 429 (vedi sotto). Parte dalla 2.19.6. |
 | 2.20.0 | Pubblicata il 17/11/2026, sostituita dalla 2.21.0 | Restyling strutturale Agenda & Card (vedi sotto). Parte dalla 2.19.7. |
 | 2.21.0 | Pubblicata il 17/11/2026 | Backup completo e ripristino (richiesta #32, vedi sotto). Parte dalla 2.20.0. |
+| 2.21.1 | Candidata, non pubblicata | Assegni che pagano più fatture insieme e abbinamento con appuntamento già "pagato" (vedi sotto). Parte dalla 2.21.0. |
+
+## 2.21.1
+
+**Assegni che pagano più fatture insieme** (caso Progettomateria 19/11/2026: FT 260575 + 260613, due assegni BPPB che coprono il totale)
+
+- `numeriFattureApp` (prima `numeroFatturaApp`): il campo "N. fattura" o il titolo possono contenere più fatture ("260575, 260613", "3064/3166/3425", "FT 1016 + 1235", "2960 e 3017"). Prima l'app leggeva tutto come un unico numero e nessuna delle fatture risultava coperta dall'appuntamento, quindi restavano in "Da pagare senza assegno". "123/2026": l'anno dopo la barra viene ignorato.
+- `verificaSenzaAssegno`: oltre al controllo fattura per fattura, toglie dal riquadro un gruppo di fatture della stessa azienda (prima quelle di uno stesso appuntamento, poi tutte quelle rimaste) quando gli assegni emessi liberi fanno esattamente il loro totale.
+
+**Abbinamento assegni con appuntamento segnato "pagato" senza rate** (caso Antonucci 19/11/2026)
+
+- `abbinaAssegniApp`: un appuntamento recente (ultimi 60 giorni) segnato "pagato" a mano, senza rate e con modalità assegno o non indicata, prende gli assegni dell'azienda che fanno esattamente il suo importo, anche già incassati, da un mese prima dell'appuntamento in poi. Ogni rata segue lo stato del suo assegno (incassato = pagata), quindi il pagamento può tornare "da saldare" o "acconto" finché gli assegni non sono incassati. Con bonifico, contanti, carta, RiBa o altro non cambia nulla.
 
 ## 2.21.0
 

@@ -812,7 +812,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.21.0';
+const APP_VERSION = '2.21.1';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -4273,10 +4273,15 @@ function sezioneAtlantis(c, cid) {
   </div>`;
 }
 
-// Numero della fattura di un appuntamento: il campo "N. fattura" o, se manca, "FT 3138" scritto nel titolo.
-function numeroFatturaApp(a) {
-  const n = String(a.fattura || '').trim() || (String(a.motivo || '').match(/\b(?:FT|fatt(?:ura)?)\.?\s*(?:n\.?\s*)?(\d+)/i) || [])[1] || '';
-  return n.replace(/^0+/, '');
+// Numeri delle fatture di un appuntamento: il campo "N. fattura" o, se manca, "FT 3138" scritto nel titolo.
+// Un appuntamento può pagare più fatture insieme: "260575, 260613", "3064/3166/3425", "FT 1016 + 1235", "2960 e 3017".
+function numeriFattureApp(a) {
+  const testo = String(a.fattura || '').trim()
+    || (String(a.motivo || '').match(/\b(?:FT|fatt(?:ure|ura)?)\.?\s*(?:n(?:r|um)?\.?\s*)?(\d+(?:\s*(?:[,;+&/-]|\be\b)\s*\d+)*)/i) || [])[1] || '';
+  const pezzi = testo.split(/\s*(?:[,;+&]|\s-\s|\be\b|\s)\s*/i).flatMap(x => x.split('/')).map(x => x.trim()).filter(x => /\d/.test(x));
+  // "123/2026": l'anno dopo la barra non è una fattura
+  const numeri = pezzi.filter((x, i) => !(i > 0 && /^(?:19|20)\d\d$/.test(x) && testo.includes('/' + x)));
+  return [...new Set(numeri.map(x => x.replace(/^0+/, '')).filter(Boolean))];
 }
 // Fatture di un soggetto Atlantis il cui pagamento è stato aggiornato in un appuntamento del contatto
 // (rate, assegni, acconto o saldo): le loro scadenze previste in Atlantis non contano più.
@@ -4287,8 +4292,7 @@ function fattureCoperte(cid, c, sogg) {
     if (!a || a.contattoId !== cid || a.stato === 'annullato') continue;
     if (!(a.pagamentoAggiornato || rateDi(a).length || statoPag(a) !== 'da-saldare')) continue;
     if (a.azienda && Array.isArray(c?.atlantis?.mandanti) && c.atlantis.mandanti.length && mandanteAtlantis(c, a.azienda) !== sogg) continue;
-    const n = numeroFatturaApp(a);
-    if (n) out.set(n, a);
+    for (const n of numeriFattureApp(a)) out.set(n, a);
   }
   return out;
 }
@@ -4497,12 +4501,17 @@ function assegnoDiAzienda(x, nome) {
 
 // Pagamento in uscita a un'azienda rappresentata: se gli assegni emessi nell'app Assegni (non pagati e non già
 // abbinati a un altro appuntamento) fanno esattamente quanto resta da pagare, diventano le rate dell'appuntamento.
+// Anche un appuntamento recente segnato "pagato" a mano senza rate (modalità assegno o non indicata) prende gli assegni
+// che fanno esattamente il suo importo, anche se già incassati: ogni rata segue poi lo stato del suo assegno.
+const pagatoSenzaRate = a => !rateDi(a).length && statoPag(a) === 'pagato' && haImporto(a) && (!a.modalita || a.modalita === 'assegno')
+  && validDate(a.data) && a.data >= isoOf(addDays(new Date(), -60));
 const abbinando = new Set();
 async function abbinaAssegniApp(aid) {
   const a = S.appuntamenti[aid], c = S.contatti[a?.contattoId];
   if (!a || !c || abbinando.has(aid) || tipoDi(c) !== 'rappresentante' || movimentoDi(a) !== 'uscita' || !a.azienda || a.stato === 'annullato') return;
-  const rate = rateDi(a), giaAbbinate = rate.some(x => x.inAssegni);
-  if (!giaAbbinate && !residuo(a)) return;
+  const rate = rateDi(a), giaAbbinate = rate.some(x => x.inAssegni), giaPagato = pagatoSenzaRate(a);
+  if (!giaAbbinate && !residuo(a) && !giaPagato) return;
+  const obiettivo = giaPagato ? Number(a.importo) : residuo(a);
   abbinando.add(aid);
   try {
     if (!(await utenteAssegni())) return;
@@ -4523,17 +4532,19 @@ async function abbinaAssegniApp(aid) {
     }
     const usati = new Set(Object.entries(S.appuntamenti).filter(([id]) => id !== aid)
       .flatMap(([, x]) => rateDi(x).filter(r => r.inAssegni && r.assegno?.numero).map(r => chiave(r.assegno))));
+    // Già pagato: contano anche gli assegni incassati, ma solo da un mese prima dell'appuntamento in poi.
+    const dal = giaPagato ? isoOf(addDays(new Date(a.data + 'T12:00:00'), -31)) : '';
     let cand = (await leggiAssegni(isoOf(addDays(new Date(), -365))))
-      .filter(x => !x.pagato && assegnoDiAzienda(x, a.azienda) && !usati.has(chiave(x)))
+      .filter(x => (giaPagato || !x.pagato) && assegnoDiAzienda(x, a.azienda) && !usati.has(chiave(x)) && String(x.data || '') >= dal)
       .sort((x, y) => x.data.localeCompare(y.data));
     // Tutti gli assegni dell'azienda, oppure quelli che insieme fanno esattamente quanto resta
     // (l'azienda può avere altri assegni per altre fatture).
     const tot = Math.round(cand.reduce((t, x) => t + (Number(x.importo) || 0), 0)) / 100;
-    if (Math.abs(tot - residuo(a)) > 0.009) cand = assegniPerImporto(cand, residuo(a)) || [];
+    if (Math.abs(tot - obiettivo) > 0.009) cand = assegniPerImporto(cand, obiettivo) || [];
     if (!cand.length) return;
     const pagate = rate.filter(x => x.pagata);
     if (!rate.length && statoPag(a) === 'acconto' && Number(a.acconto) > 0) pagate.push({ data: a.data, importo: Number(a.acconto), modalita: a.modalita || '', pagata: true });
-    const nuove = [...pagate, ...cand.map(x => ({ data: x.data, importo: (Number(x.importo) || 0) / 100, modalita: 'assegno', pagata: false, inAssegni: true,
+    const nuove = [...pagate, ...cand.map(x => ({ data: x.data, importo: (Number(x.importo) || 0) / 100, modalita: 'assegno', pagata: giaPagato && !!x.pagato, inAssegni: true,
       assegno: pulisciAssegno({ numero: x.numero, banca: x.banca, data: x.data }) }))];
     const storico = storicoOf(a);
     storico.push({ tipo: 'assegni', n: cand.length, quando: new Date().toISOString() });
@@ -4555,7 +4566,8 @@ function assegniPerImporto(lista, euroTot) {
 }
 
 // Toglie dal riquadro "Da pagare senza assegno" le fatture per cui nell'app Assegni ci sono assegni emessi
-// (non pagati e non abbinati a un appuntamento) che citano la fattura o che insieme fanno esattamente il suo importo.
+// (non pagati e non abbinati a un appuntamento) che citano la fattura o che insieme fanno esattamente il suo importo,
+// oppure il totale di più fatture della stessa azienda pagate insieme.
 async function verificaSenzaAssegno(box, cid) {
   const el = box?.querySelector('[data-senza-assegno]');
   if (!el) return;
@@ -4565,17 +4577,35 @@ async function verificaSenzaAssegno(box, cid) {
     const chiave = x => norm(x.banca) + '|' + String(x.numero).trim();
     const usati = new Set(Object.values(S.appuntamenti).flatMap(x => rateDi(x).filter(r => r.inAssegni && r.assegno?.numero).map(r => chiave(r.assegno))));
     const cita = (x, n) => new RegExp(`(^|\\D)0*${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\D|$)`).test(String(x.causale || ''));
-    const resta = scadenzeSenzaAssegno(cid).filter(f => {
-      const m = mandanteAtlantis(S.contatti[cid], f.azienda);
-      const altre = (m?.fatture || []).filter(g => numFatt(g.numero) !== f.numero);
-      const suoi = tutti.filter(x => !x.pagato && assegnoDiAzienda(x, f.azienda) && !usati.has(chiave(x)));
-      if (suoi.some(x => cita(x, f.numero))) return false;
-      // esclusi gli assegni già legati ad altre fatture (citati nella causale o nelle note Atlantis)
-      const inNota = (x, nota) => { const n = String(x.numero || '').split('-')[0].replace(/\D/g, ''); return !!n && (String(nota || '').match(/\d{3,}/g) || []).some(k => n.endsWith(k)); };
-      const liberi = suoi.filter(x => !altre.some(g => cita(x, numFatt(g.numero)) || inNota(x, g.nota)))
-        .filter(x => !f.data || String(x.data) >= f.data);
-      return !assegniPerImporto(liberi, f.aperto);
-    });
+    const inNota = (x, nota) => { const n = String(x.numero || '').split('-')[0].replace(/\D/g, ''); return !!n && (String(nota || '').match(/\d{3,}/g) || []).some(k => n.endsWith(k)); };
+    const suoiDi = azienda => tutti.filter(x => !x.pagato && assegnoDiAzienda(x, azienda) && !usati.has(chiave(x)));
+    // Assegni liberi per un gruppo di fatture della stessa azienda: esclusi quelli già legati ad altre fatture
+    // (citati nella causale o nelle note Atlantis) e quelli emessi prima della fattura più vecchia del gruppo.
+    const liberiPer = gruppo => {
+      const numeri = new Set(gruppo.map(f => f.numero)), m = mandanteAtlantis(S.contatti[cid], gruppo[0].azienda);
+      const altre = (m?.fatture || []).filter(g => !numeri.has(numFatt(g.numero)));
+      const dal = gruppo.map(f => f.data).filter(Boolean).sort()[0] || '';
+      return suoiDi(gruppo[0].azienda).filter(x => !altre.some(g => cita(x, numFatt(g.numero)) || inNota(x, g.nota)))
+        .filter(x => !dal || String(x.data) >= dal);
+    };
+    const totale = gruppo => Math.round(gruppo.reduce((t, f) => t + Number(f.aperto), 0) * 100) / 100;
+    // Fattura per fattura: un assegno che la cita, o assegni che fanno esattamente il suo importo.
+    let resta = scadenzeSenzaAssegno(cid).filter(f => !suoiDi(f.azienda).some(x => cita(x, f.numero)) && !assegniPerImporto(liberiPer([f]), f.aperto));
+    // Più fatture pagate insieme (es. due assegni che coprono il totale di FT 260575 + 260613, non le singole):
+    // prima le fatture di uno stesso appuntamento, poi tutte quelle rimaste della stessa azienda.
+    const gruppi = [];
+    for (const a of Object.values(S.appuntamenti || {})) {
+      if (!a || a.contattoId !== cid || a.stato === 'annullato') continue;
+      const nums = numeriFattureApp(a);
+      if (nums.length < 2) continue;
+      const g = resta.filter(f => nums.some(n => coperta(new Map([[n, a]]), f.numero)));
+      if (g.length > 1 && g.every(f => f.azienda === g[0].azienda)) gruppi.push(g);
+    }
+    for (const az of new Set(resta.map(f => f.azienda))) gruppi.push(resta.filter(f => f.azienda === az));
+    for (const g of gruppi) {
+      const ancora = g.filter(f => resta.includes(f));
+      if (ancora.length > 1 && assegniPerImporto(liberiPer(ancora), totale(ancora))) resta = resta.filter(f => !ancora.includes(f));
+    }
     el.outerHTML = riquadroSenzaAssegno(cid, resta);
   } catch (e) { /* senza accesso all'app Assegni il riquadro resta com'è */ }
 }
