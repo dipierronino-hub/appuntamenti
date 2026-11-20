@@ -16,8 +16,16 @@ La versione si trova in due punti, da cambiare sempre insieme:
 | 2.19.6 | Pubblicata il 16/11/2026, sostituita dalla 2.19.7 | Sito web del contatto, pulsante Web e ricerca del sito con AI (vedi sotto). Parte dalla 2.19.5. |
 | 2.19.7 | Pubblicata il 17/11/2026, sostituita dalla 2.20.0 | Ricerca sito AI: aziende rappresentate e recupero dagli errori 429 (vedi sotto). Parte dalla 2.19.6. |
 | 2.20.0 | Pubblicata il 17/11/2026, sostituita dalla 2.21.0 | Restyling strutturale Agenda & Card (vedi sotto). Parte dalla 2.19.7. |
-| 2.21.0 | Pubblicata il 17/11/2026 | Backup completo e ripristino (richiesta #32, vedi sotto). Parte dalla 2.20.0. |
-| 2.21.1 | Candidata, non pubblicata | Assegni che pagano più fatture insieme e abbinamento con appuntamento già "pagato" (vedi sotto). Parte dalla 2.21.0. |
+| 2.21.0 | Pubblicata il 17/11/2026, sostituita dalla 2.21.1 | Backup completo e ripristino (richiesta #32, vedi sotto). Parte dalla 2.20.0. |
+| 2.21.1 | Pubblicata il 19/11/2026 | Assegni che pagano più fatture insieme e abbinamento con appuntamento già "pagato" (vedi sotto). Parte dalla 2.21.0. |
+| 2.21.2 | Candidata, non pubblicata | Importi sempre con il punto delle migliaia (1.006,65 €), anche nelle notifiche push (vedi sotto). Parte dalla 2.21.1. |
+
+## 2.21.2
+
+- Tutti gli importi mostrati usano il formato italiano con il punto delle migliaia e la virgola dei decimali, anche sotto i 10.000 (prima alcuni browser mostravano `1006,65 €`, ora `1.006,65 €`): agenda, dettaglio, rate, situazione Atlantis, assegni, riepiloghi.
+- Anche i campi importo nei moduli di modifica si aprono già formattati (`1.006,65`); quello che si scrive si legge come prima.
+- Notifiche push (`scripts/push-promemoria.mjs`): stesso formato.
+- Nessun cambiamento ai dati salvati.
 
 ## 2.21.1
 

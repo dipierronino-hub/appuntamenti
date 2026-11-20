@@ -74,7 +74,12 @@ function adessoRoma(t) {
   return { data: `${p.year}-${p.month}-${p.day}`, ora: `${p.hour}:${p.minute}` };
 }
 
-const euro = n => Number(n).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+// Formato italiano con il punto delle migliaia sempre (1.006,65 €), indipendente da Intl/ICU.
+const euro = n => {
+  const v = Math.round(Number(n || 0) * 100) / 100;
+  const [i, d] = Math.abs(v).toFixed(2).split('.');
+  return (v < 0 ? '-' : '') + i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d + ' €';
+};
 
 // Testo del riepilogo: una riga per appuntamento ancora aperto, in ordine di ora.
 function riepilogo(u, oggi) {
