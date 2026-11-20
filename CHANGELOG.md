@@ -25,6 +25,7 @@ La versione si trova in due punti, da cambiare sempre insieme:
 - Tutti gli importi mostrati usano il formato italiano con il punto delle migliaia e la virgola dei decimali, anche sotto i 10.000 (prima alcuni browser mostravano `1006,65 €`, ora `1.006,65 €`): agenda, dettaglio, rate, situazione Atlantis, assegni, riepiloghi.
 - Anche i campi importo nei moduli di modifica si aprono già formattati (`1.006,65`); quello che si scrive si legge come prima.
 - Notifiche push (`scripts/push-promemoria.mjs`): stesso formato.
+- Agenda: la colonna degli orari è più larga, così l'ora (es. `16:30`) non finisce più sotto la barra colorata; il nome dell'azienda rappresentata va a capo invece di essere tagliato.
 - Nessun cambiamento ai dati salvati.
 
 ## 2.21.1
