@@ -211,6 +211,15 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 .fab.add{width:58px;height:58px;border-radius:18px;border:0;background:var(--accent);color:#fff;box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 35%,transparent),0 2px 6px rgba(15,27,45,.18)}
 .fab.add:hover{background:var(--accent-hover)}
 .ascolto{background:#dc2626!important;border-color:transparent!important;color:#fff!important;animation:pulse 1.2s infinite}
+/* Pannello della dettatura vocale */
+.voce-pannello{position:fixed;z-index:60;left:max(12px,calc((100vw - var(--col)) / 2 + 12px));right:max(12px,calc((100vw - var(--col)) / 2 + 12px));bottom:calc(12px + env(safe-area-inset-bottom));background:var(--surface);border:1px solid var(--glass-border);border-radius:20px;box-shadow:var(--shadow-md),0 12px 40px rgba(15,27,45,.28);padding:16px;display:flex;flex-direction:column;gap:12px;animation:voceSu .18s ease-out}
+@keyframes voceSu{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+.voce-testa{display:flex;align-items:center;gap:10px;font-size:16px}
+.voce-onda{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#dc2626;color:#fff;animation:pulse 1.2s infinite;flex:none}
+.voce-testo{min-height:52px;font-size:18px;line-height:1.4;font-weight:600;word-break:break-word}
+.voce-azioni{display:flex;gap:10px}
+.voce-azioni .btn{flex:1}
+.evidenzia{outline:3px solid #f97316!important;outline-offset:2px;transition:outline-color .3s}
 
 /* Schermate sovrapposte e fogli dal basso */
 .layer{position:fixed;inset:0;z-index:20}
@@ -800,7 +809,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
     <button class="tab" data-act="nav" data-v="impostazioni"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><span>Altro</span></button>
   </nav>
   <div class="fabs">
-    <button id="mic" class="fab mic" data-act="voce" aria-label="Comando vocale"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></button>
+    <button id="mic" class="fab mic" data-act="voce" aria-label="Detta un appuntamento o un comando"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></button>
     <button class="fab add" data-act="nuovoApp" aria-label="Aggiungi appuntamento o contatto"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   </div>
 </div>
@@ -814,7 +823,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.21.2';
+const APP_VERSION = '2.22.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1290,7 +1299,7 @@ function toast(msg) {
   t.hidden = false;
   document.body.appendChild(t); // resta sopra le schermate aperte
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => { t.hidden = true; }, 3200);
+  toast._t = setTimeout(() => { t.hidden = true; }, Math.min(9000, Math.max(3200, msg.length * 55))); // i messaggi lunghi restano di più
 }
 
 // ===================== SCHERMATE SOVRAPPOSTE =====================
@@ -5271,6 +5280,12 @@ function voiceExec(raw) {
     openAppForm({ testoSmart: raw });
     return;
   }
+  // Senza IA una frase libera dettata ("martedì alle 10 sopralluogo con Mario Rossi") diventa comunque
+  // un nuovo appuntamento: il modulo si apre compilato dall'assistente e il salvataggio resta all'utente.
+  if (c.tipo === 'sconosciuto') {
+    openAppForm({ testoSmart: raw });
+    return;
+  }
   switch (c.tipo) {
     case 'nuovo': {
       const contatto = trovaContatto(S.contatti, c.nome);
@@ -5311,24 +5326,87 @@ function voiceExec(raw) {
   }
 }
 
-// Avvia il riconoscimento vocale; il pulsante pulsa mentre ascolta.
-// Senza callback il testo diventa un comando; con callback lo riceve il chiamante (es. il modulo).
+// Dettatura vocale: un pannello in basso mostra le parole mentre si parla.
+// Si ferma da sola alla pausa, oppure con "Fatto"; "Annulla" butta via tutto.
+// Senza callback il testo diventa un comando (o un nuovo appuntamento); con callback lo riceve il chiamante (es. il modulo).
+// Dove il riconoscimento del browser manca o è bloccato (es. alcuni iPhone dall'icona Home)
+// si passa al microfono della tastiera, che funziona ovunque.
+let voceAttiva = null;
+const ERRORI_VOCE = {
+  'not-allowed': 'Microfono non permesso. Su iPhone: Impostazioni › Safari › Microfono › Consenti. Su Android: tieni premuta l’icona dell’app › Info › Autorizzazioni › Microfono.',
+  'service-not-allowed': 'Dettatura non disponibile qui. Su iPhone attiva Impostazioni › Generali › Tastiera › Abilita Dettatura.',
+  'no-speech': 'Non ho sentito nulla: riprova parlando vicino al telefono',
+  'audio-capture': 'Microfono non trovato o usato da un’altra app',
+  network: 'Per la dettatura serve internet: riprova quando sei connesso',
+  'language-not-supported': 'Italiano non disponibile per la dettatura su questo telefono'
+};
+
+// Ripiego: apre (o usa) la casella "Scrivi o detta" e invita a usare il microfono della tastiera.
+function dettaConTastiera(daHome, msg) {
+  if (daHome && S.user) openAppForm({});
+  const t = $('#smartTxt');
+  if (t) {
+    t.focus();
+    t.classList.add('evidenzia');
+    setTimeout(() => t.classList.remove('evidenzia'), 2500);
+  }
+  toast((msg ? msg + ' ' : '') + (t ? 'Puoi dettare col microfono 🎤 della tastiera.' : (msg ? '' : 'Dettatura non disponibile su questo browser')));
+}
+
 function voiceStart(btn = $('#mic'), suTesto = null) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { toast('Riconoscimento vocale non disponibile su questo browser'); return; }
-  const rec = new SR();
+  const daHome = !suTesto;
+  if (!SR) { dettaConTastiera(daHome); return; }
+  if (voceAttiva) { voceAttiva.stop(); return; }
+  let rec;
+  try { rec = new SR(); } catch (e) { dettaConTastiera(daHome); return; }
   rec.lang = 'it-IT';
-  rec.interimResults = false;
+  rec.interimResults = true;
+  rec.continuous = false;
   rec.maxAlternatives = 1;
+
+  const pan = document.createElement('div');
+  pan.className = 'voce-pannello';
+  pan.setAttribute('role', 'dialog');
+  pan.setAttribute('aria-label', 'Dettatura');
+  pan.innerHTML = `<div class="voce-testa"><span class="voce-onda" aria-hidden="true">${icon('mic', 22)}</span><b>Ti ascolto…</b></div>
+    <div class="voce-testo" aria-live="polite"><span class="muted">Es. «martedì alle 10 sopralluogo con Mario Rossi a Bari»</span></div>
+    <div class="voce-azioni"><button type="button" class="btn btn-ghost" data-v="annulla">Annulla</button><button type="button" class="btn btn-primary" data-v="fatto">Fatto</button></div>`;
+  document.body.appendChild(pan);
+  const box = pan.querySelector('.voce-testo');
+  let finale = '', provvisorio = '', annullato = false, errore = '';
+
+  pan.querySelector('[data-v="annulla"]').onclick = () => { annullato = true; try { rec.abort(); } catch (e) { /* già chiuso */ } };
+  pan.querySelector('[data-v="fatto"]').onclick = () => { try { rec.stop(); } catch (e) { /* già chiuso */ } };
+
   rec.onresult = e => {
-    const t = e.results[0][0].transcript;
-    toast('Ho capito: ' + t);
-    if (suTesto) suTesto(t); else voiceExec(t);
+    finale = ''; provvisorio = '';
+    for (let i = 0; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) finale += r[0].transcript; else provvisorio += r[0].transcript;
+    }
+    box.innerHTML = esc(finale) + (provvisorio ? `<span class="muted">${esc(provvisorio)}</span>` : '');
   };
-  rec.onerror = e => toast('Errore vocale: ' + e.error);
-  rec.onend = () => btn?.classList.remove('ascolto');
+  rec.onerror = e => { errore = e.error || 'errore'; };
+  rec.onend = () => {
+    voceAttiva = null;
+    btn?.classList.remove('ascolto');
+    pan.remove();
+    if (annullato) return;
+    const testo = (finale || provvisorio).trim();
+    if (testo) {
+      vibra('ok');
+      if (suTesto) suTesto(testo); else voiceExec(testo);
+      return;
+    }
+    if (errore === 'aborted') return;
+    if (errore === 'not-allowed' || errore === 'service-not-allowed') { dettaConTastiera(daHome, ERRORI_VOCE[errore]); return; }
+    toast(ERRORI_VOCE[errore] || ERRORI_VOCE['no-speech']);
+  };
+
   btn?.classList.add('ascolto');
-  rec.start();
+  voceAttiva = rec;
+  try { rec.start(); } catch (e) { rec.onend(); }
 }
 
 // ===================== ACCESSO CON IMPRONTA (blocco locale su questo dispositivo) =====================

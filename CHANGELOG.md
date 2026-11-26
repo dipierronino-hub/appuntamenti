@@ -18,9 +18,19 @@ La versione si trova in due punti, da cambiare sempre insieme:
 | 2.20.0 | Pubblicata il 17/11/2026, sostituita dalla 2.21.0 | Restyling strutturale Agenda & Card (vedi sotto). Parte dalla 2.19.7. |
 | 2.21.0 | Pubblicata il 17/11/2026, sostituita dalla 2.21.1 | Backup completo e ripristino (richiesta #32, vedi sotto). Parte dalla 2.20.0. |
 | 2.21.1 | Pubblicata il 19/11/2026 | Assegni che pagano più fatture insieme e abbinamento con appuntamento già "pagato" (vedi sotto). Parte dalla 2.21.0. |
-| 2.21.2 | Candidata, non pubblicata | Importi sempre con il punto delle migliaia (1.006,65 €), anche nelle notifiche push (vedi sotto). Parte dalla 2.21.1. |
+| 2.21.2 | Pubblicata (richiesta #40) | Importi sempre con il punto delle migliaia (1.006,65 €), anche nelle notifiche push (vedi sotto). Parte dalla 2.21.1. |
+| 2.22.0 | Candidata, non pubblicata | Dettatura vocale degli appuntamenti più comoda e affidabile su iPhone e Android (vedi sotto). Parte dalla 2.21.2. |
 
-## 2.21.2
+## 2.22.0
+
+Dettatura vocale degli appuntamenti.
+
+- Il microfono (in basso accanto a "Nuovo" e nel modulo) apre un pannello "Ti ascolto…" che mostra le parole mentre si parla, con "Fatto" (usa quanto detto finora) e "Annulla".
+- Dalla schermata principale una frase libera ("martedì alle 10 sopralluogo con Mario Rossi a Bari") apre il nuovo appuntamento già compilato anche senza chiave Gemini; prima serviva iniziare con "nuovo appuntamento". Il salvataggio resta sempre all'utente.
+- Se il telefono blocca la dettatura del browser (capita sull'iPhone aprendo l'app dall'icona Home) o il browser non la ha, si apre la casella "Scrivi o detta" evidenziata e l'app invita a usare il microfono della tastiera, che funziona ovunque.
+- Errori spiegati in italiano (permesso microfono, niente internet, nessuna voce sentita) e messaggi lunghi visibili più a lungo.
+
+
 
 - Tutti gli importi mostrati usano il formato italiano con il punto delle migliaia e la virgola dei decimali, anche sotto i 10.000 (prima alcuni browser mostravano `1006,65 €`, ora `1.006,65 €`): agenda, dettaglio, rate, situazione Atlantis, assegni, riepiloghi.
 - Anche i campi importo nei moduli di modifica si aprono già formattati (`1.006,65`); quello che si scrive si legge come prima.
