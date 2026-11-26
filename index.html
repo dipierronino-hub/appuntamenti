@@ -823,7 +823,7 @@ textarea.input{min-height:96px;resize:vertical;line-height:1.5}
 
 <script>
 // ===================== CONFIGURAZIONE =====================
-const APP_VERSION = '2.22.0';
+const APP_VERSION = '2.23.0';
 // Chiave pubblica per le notifiche push (la privata è solo nel database, letta da scripts/push-promemoria.mjs).
 const VAPID_PUBLIC_KEY = 'BD0N06dnYKZ7wE2mr-XhGFXGNaiGjLPtGXwWebq0sVw13APOVCmWBCzMGoCtb3hcMJrLu1JYzcwf9YDsARM7-5Y';
 const FIREBASE_CONFIG = { apiKey: "AIzaSyBxNlUYmBk551OnWMUj06WL-pd8awovVV8", authDomain: "appuntamenti-511913.firebaseapp.com", databaseURL: "https://appuntamenti-511913-default-rtdb.europe-west1.firebasedatabase.app", projectId: "appuntamenti-511913", storageBucket: "appuntamenti-511913.firebasestorage.app", messagingSenderId: "215870183788", appId: "1:215870183788:web:359cfc5feddbe5f567fb49" };
@@ -1493,6 +1493,7 @@ async function salvaAppuntamento(v, aid) {
   const pagRate = app && rateDi(app).length ? { importo: app.importo, rate: rateDi(app), ...statoDaRate(rateDi(app)) } : {};
   updates[`users/${uid}/appuntamenti/${appId}`] = {
     contattoId: cid, ...ra.dati, ...pagRate, ...Object.fromEntries(CAMPI_PAGAMENTO_EXTRA.filter(k => app?.[k]).map(k => [k, app[k]])), rinvii: app?.rinvii || 0, storico,
+    ...(!app && String(v.fattura ?? '').trim() ? { fattura: String(v.fattura).trim().slice(0, 30), ...(validDate(v.dataFattura) ? { dataFattura: v.dataFattura } : {}) } : {}),
     creato: app?.creato ?? nowMs, aggiornato: nowMs,
     ...(app?.confermaEmail ? { confermaEmail: app.confermaEmail } : {})
   };
@@ -3777,7 +3778,7 @@ function openAppForm(opt = {}) {
             <button type="button" class="btn btn-secondary btn-icon" id="micSmart" aria-label="Detta il messaggio">${icon('mic', 20)}</button>
             <button type="button" class="btn btn-primary btn-icon" id="btnSmart" aria-label="Compila il modulo">${icon('send', 19)}</button>
           </div>
-          <p class="muted" style="margin:0;font-size:12px">${conIA ? 'Con Gemini: capisce titolo, data, ora, cliente, luogo e importo.' : 'Senza chiave Gemini capisco data, ora, nome (dopo «con» o «per»), motivo e luogo. Importo e pagamento solo con la chiave: Altro › Assistente IA.'}</p>
+          <p class="muted" style="margin:0;font-size:12px">${conIA ? 'Con Gemini: capisce titolo, data, ora, cliente, luogo e importo.' : 'Capisco data, ora, nome (anche «rappresentante Manolo Odierno»), motivo e luogo.'} Per i rappresentanti compilo azienda, fatture e importo dai dati Atlantis.</p>
         </div>`}
 
         <label class="field"><span>Motivo</span><input class="input" name="motivo" maxlength="200" value="${esc(v.motivo)}" placeholder="Es. sopralluogo, scelta sanitari" style="font-weight:700;font-size:19px"></label>
@@ -3817,6 +3818,7 @@ function openAppForm(opt = {}) {
         <div class="sezione">
           <h2>Pagamento</h2>
           <input type="hidden" name="movimento" value="${esc(v.movimento)}">
+          ${aid ? '' : '<input type="hidden" name="fattura" value=""><input type="hidden" name="dataFattura" value="">'}
           <div class="seg seg-mov" id="segMov" role="group" aria-label="Tipo di movimento">
             <button type="button" data-m="entrata" aria-pressed="${v.movimento === 'entrata'}"><span>${icon('down', 15)} Entrata</span><small>da incassare</small></button>
             <button type="button" data-m="uscita" aria-pressed="${v.movimento === 'uscita'}"><span>${icon('up', 15)} Uscita</span><small>da pagare</small></button>
@@ -3890,34 +3892,65 @@ function openAppForm(opt = {}) {
           f[k].classList.remove('compilato'); void f[k].offsetWidth; f[k].classList.add('compilato');
         }
       });
-      if (d.importo) f.importo.value = virgola(d.importo);
+      if (d.importo) { f.importo.value = virgola(d.importo); f.importo.classList.remove('compilato'); void f.importo.offsetWidth; f.importo.classList.add('compilato'); }
+      if (f.fattura && d.fattura !== undefined) { f.fattura.value = d.fattura || ''; f.dataFattura.value = d.dataFattura || ''; }
       if (d.acconto) f.acconto.value = virgola(d.acconto);
       if (d.pagamento) segnaPagamento(d.pagamento);
       if (d.movimento) segnaMovimento(d.movimento);
-      if (d.contattoId) f.contattoId.value = d.contattoId;
+      if (d.contattoId && f.contattoId.value !== d.contattoId) { f.contattoId.value = d.contattoId; f.contattoId.dispatchEvent(new Event('change')); }
       if (d.contattoId) segnaTipo(tipoDi(S.contatti[d.contattoId]));
       else if (d.tipo) segnaTipo(d.tipo);
       controlla();
     };
     // Senza chiave Gemini: riconoscimento locale di data, ora, nome, motivo e luogo (nessun dato esce dal telefono).
+    // Contatto riconosciuto (anche "rappresentante manolo odierno" senza «con»): si collega la sua scheda
+    // e, per i rappresentanti, azienda, importo e fatture da pagare arrivano dai dati Atlantis.
+    // Restituisce il messaggio da mostrare.
+    const completa = (d, testo) => {
+      const k = (d.nome && trovaContatto(S.contatti, d.nome)) || contattoNelTesto(S.contatti, testo);
+      if (!k) {
+        riempi({ ...d, nome: d.nome ? capitalizza(d.nome) : d.nome });
+        return !d.nome || d.telefono || d.email ? 'Modulo compilato: controlla i dati prima di salvare' : 'Compilato. Manca il telefono del nuovo cliente';
+      }
+      let motivo = motivoSenzaNome(d.motivo, k.nome);
+      const dati = { ...d, nome: k.nome, contattoId: k.id, telefono: d.telefono || k.telefono || '', email: d.email || k.email || '', motivo };
+      const at = tipoDi(k) === 'rappresentante' ? datiAtlantisApp(k.id, testo) : null;
+      let msg = `Scheda di ${k.nome} collegata`;
+      if (at) {
+        // "per alfa ceramiche" indica l'azienda, non il motivo.
+        const pa = new Set(norm(at.azienda).split(' '));
+        if (motivo && at.azienda && norm(motivo).split(' ').every(w => pa.has(w) || w.length < 3)) dati.motivo = motivo = '';
+        if (!dati.azienda && at.azienda) dati.azienda = at.azienda;
+        if (at.importo !== undefined) {
+          if (!(Number(d.importo) > 0)) { dati.importo = at.importo; dati.fattura = at.fattura; dati.dataFattura = at.dataFattura || ''; }
+          if (!motivo) dati.motivo = at.motivo;
+          if (!d.note) dati.note = at.note;
+          dati.movimento = 'uscita';
+          msg += `. Atlantis: ${at.nFatture === 1 ? '1 fattura' : at.nFatture + ' fatture'} da pagare, ${euro(at.importo)}`;
+        } else if (at.nessuna) msg += `. Atlantis: nessuna fattura da pagare senza assegno${at.azienda ? ' per ' + at.azienda : ''}`;
+        else if (!at.azienda && at.nAziende > 1) msg += `. Ha ${at.nAziende} aziende: dimmi anche quale`;
+        if (!dati.motivo && at.azienda) dati.motivo = 'Appuntamento ' + at.azienda;
+      }
+      riempi(dati);
+      return msg + '. Controlla e salva';
+    };
+    // Senza chiave Gemini: riconoscimento locale di data, ora, nome, motivo e luogo (nessun dato esce dal telefono).
     const compilaLocale = testo => {
       const c = classificaComando(/^(nuovo|fissa|crea|prendi|promemoria)\b/i.test(testo) ? testo : 'nuovo appuntamento con ' + testo, S.contatti);
-      const contatto = c.nome ? trovaContatto(S.contatti, c.nome) : null;
-      riempi({ data: c.data, ora: c.ora, motivo: c.motivo, luogo: c.luogo, nome: contatto ? contatto.nome : capitalizza(c.nome), contattoId: contatto?.id, telefono: contatto?.telefono, email: contatto?.email });
+      return completa({ data: c.data, ora: c.ora, motivo: c.motivo, luogo: c.luogo, nome: c.nome }, testo);
     };
     const btnSmart = m.querySelector('#btnSmart');
     const compila = async testo => {
       testo = String(testo || '').trim();
       if (!testo) { toast('Scrivi o detta un messaggio'); return; }
-      if (!lsGet('gemini_key')) { compilaLocale(testo); toast('Modulo compilato: controlla i dati prima di salvare'); return; }
+      if (!lsGet('gemini_key')) { toast(compilaLocale(testo)); return; }
       const bottoni = [btnSmart, m.querySelector('#micForm')].filter(Boolean);
       bottoni.forEach(b => { b.disabled = true; b.classList.add('analisi'); });
       try {
         const d = pulisciDatiIA(await chiediGemini(promptSmart(testo)));
-        const contatto = d.nome ? trovaContatto(S.contatti, d.nome) : null;
-        riempi({ ...d, nome: contatto?.nome || d.nome, contattoId: contatto?.id, telefono: d.telefono || contatto?.telefono || '', email: d.email || contatto?.email || '' });
+        const msg = completa(d, testo);
         vibra('ok');
-        toast(contatto || !d.nome || d.telefono || d.email ? 'Modulo compilato: controlla i dati prima di salvare' : 'Compilato. Manca il telefono del nuovo cliente');
+        toast(msg);
       } catch (err) {
         vibra('err');
         toast(messaggioIA(err));
@@ -4406,6 +4439,71 @@ function soggettoAtlantis(at, quante = 4, coperte = new Map()) {
           <div class="card-meta">${esc([x.ruolo === 'fornitore' ? 'Da pagare' : 'Da incassare', testoFattura(x.fattura, x.dataFattura) || x.rif, x.tipo].filter(Boolean).join(' · '))}</div></div>
         <span class="importo" style="color:${x.ruolo === 'fornitore' ? 'var(--out)' : 'var(--in)'}">${esc(euro(x.importo))}</span>
       </div>`).join('')}</div>` : ''}`;
+}
+
+// ----- Dettatura: riconoscere il contatto e completare l'appuntamento coi dati Atlantis -----
+// Contatto citato in una frase dettata ("domani alle 10 rappresentante manolo odierno"): tutte le parole del nome
+// presenti nel testo, in qualsiasi ordine. In mancanza basta il cognome (o una parola del nome di almeno 4 lettere)
+// se un solo contatto lo ha. Con più contatti possibili non sceglie.
+const PAROLE_TIPO = /\b(?:rappresentante|fornitore|cliente|tecnico|sig|sigra|signor|signora|dottor|dott|ing|geom|arch)\b/g;
+function contattoNelTesto(contatti, testo) {
+  const t = ' ' + norm(testo) + ' ';
+  const voci = Object.entries(contatti || {}).map(([id, c]) => ({ id, c, parole: norm(c?.nome).split(' ').filter(p => p.length >= 2) })).filter(x => x.parole.length);
+  const unico = lista => {
+    if (!lista.length) return null;
+    const max = Math.max(...lista.map(x => x.punti));
+    const top = lista.filter(x => x.punti === max);
+    return top.length === 1 ? { id: top[0].id, ...top[0].c } : null;
+  };
+  const pieni = voci.filter(x => x.parole.every(p => t.includes(' ' + p + ' '))).map(x => ({ ...x, punti: x.parole.join('').length }));
+  if (pieni.length) return unico(pieni);
+  const parziali = voci.map(x => ({ ...x, punti: x.parole.filter(p => p.length >= 4 && t.includes(' ' + p + ' ')).join('').length })).filter(x => x.punti);
+  return parziali.length === 1 ? unico(parziali) : null;
+}
+// Toglie dal motivo il nome del contatto e parole come "rappresentante": "rappresentante manolo odierno" → "".
+function motivoSenzaNome(motivo, nome) {
+  let m = ' ' + norm(motivo) + ' ';
+  const parole = norm(nome).split(' ').filter(Boolean);
+  if (!parole.length || !norm(motivo)) return String(motivo || '').trim();
+  for (const p of parole) m = m.replace(new RegExp(` ${p} `, 'g'), ' ');
+  m = m.replace(PAROLE_TIPO, ' ').replace(/\b(?:con|col|il|lo|la|per|appuntamento|nuovo)\b/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!m) return '';
+  // Il motivo restava tale e quale se non conteneva il nome.
+  return norm(motivo) === m ? String(motivo).trim() : capitalizza(m);
+}
+// Azienda e pagamento dai dati Atlantis del rappresentante (aggiornati dalla routine più volte al giorno):
+// fatture a rimessa diretta senza assegno e non già in un altro appuntamento, meno le note di credito.
+function datiAtlantisApp(cid, testo) {
+  const c = S.contatti?.[cid];
+  if (!c) return null;
+  const mand = Array.isArray(c.atlantis?.mandanti) ? c.atlantis.mandanti : [];
+  const nomi = (Array.isArray(c.mandanti) ? c.mandanti : []).filter(Boolean);
+  const t = ' ' + norm(testo) + ' ';
+  const citata = n => { const p = parolaAzienda(n); return p && p.length >= 3 && t.includes(' ' + p + ' '); };
+  let m = mand.find(x => [x.azienda, x.ragione].some(citata)) || null;
+  let azienda = m ? (m.azienda || m.ragione) : (nomi.find(citata) || '');
+  if (!m && azienda) m = mandanteAtlantis(c, azienda);
+  if (!azienda) {
+    const daPagare = mand.filter(x => haFatture(x) && x.fatture.some(f => senzaAssegno(f, fattureCoperte(cid, c, x))));
+    m = daPagare.length === 1 ? daPagare[0] : mand.length === 1 ? mand[0] : null;
+    azienda = m ? (m.azienda || m.ragione) : (nomi.length === 1 ? nomi[0] : '');
+  }
+  const out = { azienda, nAziende: Math.max(nomi.length, mand.length), aggiornato: c.atlantis?.aggiornato || '' };
+  if (!m || !haFatture(m)) return out;
+  const fatt = m.fatture.filter(f => senzaAssegno(f, fattureCoperte(cid, c, m))).sort((a, b) => String(a.data).localeCompare(String(b.data)));
+  if (!fatt.length) { out.nessuna = true; return out; }
+  const crediti = creditiDi(m);
+  const lordo = fatt.reduce((s, f) => s + Number(f.aperto), 0);
+  const nc = crediti.reduce((s, x) => s + Number(x.importo), 0);
+  const nome = azienda.replace(/\s+(?:s\.?c\.?p\.?a\.?|s\.?r\.?l\.?|s\.?p\.?a\.?|s\.?n\.?c\.?|s\.?a\.?s\.?)\b.*$/i, '').trim() || azienda;
+  out.importo = Math.max(0, Math.round((lordo - nc) * 100) / 100);
+  out.fattura = fatt.map(f => numFatt(f.numero)).join(' + ').slice(0, 30);
+  if (fatt.length === 1 && validDate(fatt[0].data)) out.dataFattura = fatt[0].data;
+  out.motivo = fatt.length === 1 ? `Pagamento fattura ${numFatt(fatt[0].numero)} ${nome}` : `Pagamento fatture ${nome}`;
+  out.note = [...fatt.map(f => `${testoFattura(numFatt(f.numero), f.data)}: ${euro(f.aperto)}`),
+    ...crediti.map(x => `${testoNotaCredito(x)}: − ${euro(x.importo)}`)].join('\n');
+  out.nFatture = fatt.length;
+  return out;
 }
 
 // Situazione contabile di un'azienda rappresentata (dati Atlantis scritti ogni mattina dalla routine).
@@ -5282,7 +5380,7 @@ function voiceExec(raw) {
   }
   // Senza IA una frase libera dettata ("martedì alle 10 sopralluogo con Mario Rossi") diventa comunque
   // un nuovo appuntamento: il modulo si apre compilato dall'assistente e il salvataggio resta all'utente.
-  if (c.tipo === 'sconosciuto') {
+  if (c.tipo === 'sconosciuto' || c.tipo === 'nuovo') {
     openAppForm({ testoSmart: raw });
     return;
   }

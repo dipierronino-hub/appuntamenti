@@ -19,9 +19,20 @@ La versione si trova in due punti, da cambiare sempre insieme:
 | 2.21.0 | Pubblicata il 17/11/2026, sostituita dalla 2.21.1 | Backup completo e ripristino (richiesta #32, vedi sotto). Parte dalla 2.20.0. |
 | 2.21.1 | Pubblicata il 19/11/2026 | Assegni che pagano più fatture insieme e abbinamento con appuntamento già "pagato" (vedi sotto). Parte dalla 2.21.0. |
 | 2.21.2 | Pubblicata (richiesta #40) | Importi sempre con il punto delle migliaia (1.006,65 €), anche nelle notifiche push (vedi sotto). Parte dalla 2.21.1. |
-| 2.22.0 | Candidata, non pubblicata | Dettatura vocale degli appuntamenti più comoda e affidabile su iPhone e Android (vedi sotto). Parte dalla 2.21.2. |
+| 2.22.0 | Pubblicata il 26/11/2026 (richiesta #41) | Dettatura vocale degli appuntamenti più comoda e affidabile su iPhone e Android (vedi sotto). Parte dalla 2.21.2. |
+| 2.23.0 | Candidata, non pubblicata | Dettatura: riconosce il contatto e compila la scheda coi dati Atlantis (vedi sotto). Parte dalla 2.22.0. |
 
-## 2.22.0
+## 2.23.0
+
+Dettatura che riconosce con chi è l'appuntamento e compila tutto dai dati Atlantis.
+
+- Il contatto si riconosce ovunque sia nella frase, anche senza «con»: «domani alle 10 rappresentante manolo odierno», o solo col cognome se è l'unico. La sua scheda si collega al modulo (tipo, telefono, email, riquadro "Da pagare senza assegno").
+- Per i rappresentanti: azienda (quella detta, oppure l'unica con fatture da pagare), fatture a rimessa diretta senza assegno e non già in un altro appuntamento, importo meno le note di credito, uscita, motivo "Pagamento fatture …" e l'elenco delle fatture nelle note. Il numero delle fatture si salva nell'appuntamento.
+- Con più aziende con fatture aperte e nessuna detta, l'app chiede di dire anche l'azienda.
+- I dati Atlantis sono quelli dell'ultimo aggiornamento della routine (l'app non legge Atlantis direttamente).
+- I comandi «nuovo appuntamento con …» passano dallo stesso modulo.
+
+
 
 Dettatura vocale degli appuntamenti.
 
